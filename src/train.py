@@ -169,7 +169,7 @@ if __name__ == "__main__":
         visualize(n=6)
         exit()
 
-    logger.log(logging.INFO, '==================== Start training ====================')
+    logger.log(logging.INFO, f'==================== Start training [{model_fullname}] ====================')
     trainer.resume_or_load(resume=args.resume)
     try:
         trainer.start_iter = 1
