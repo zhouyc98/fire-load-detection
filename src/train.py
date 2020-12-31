@@ -55,6 +55,19 @@ class Trainer(DefaultTrainer):
             TensorboardXWriter(f"runs/{datetime.now().strftime('%y%m%d-%H%M')} {model_fullname}"),
         ]
 
+    @classmethod
+    def build_model(cls, cfg):
+        """
+        Returns:
+            torch.nn.Module:
+
+        It now calls :func:`detectron2.modeling.build_model`.
+        Overwrite it if you'd like a different model.
+        """
+        model = build_model(cfg)
+        # logger = logging.getLogger(__name__)
+        # logger.info("Model:\n{}".format(model))
+        return model
 
 def visualize(model_path='model_final.pth', thr_test=0.5, output_dir='./vis', n=6):
     os.makedirs(output_dir, exist_ok=True)
