@@ -5,9 +5,10 @@ data/
 bak*/
 csv/
 pred/
+vis/
 runs/
 models/
-output/
+output*/
 
 *.xlsx
 *.pt
