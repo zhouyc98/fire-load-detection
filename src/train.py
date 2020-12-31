@@ -125,7 +125,7 @@ def get_args():
     parser.add_argument('-c', '--cuda', type=str, default=_c, help='cuda visible device id')
     parser.add_argument('-r', '--resume', action='store_true', help='resume training')
     parser.add_argument('-g', '--gamma', type=float, default=0.1, help='lr gamma')
-    parser.add_argument('-s', '--step', type=int, default=1000, help='lr decrease step')
+    parser.add_argument('-s', '--step', type=int, default=100000, help='lr decrease step')
     parser.add_argument('--eval_only', action='store_true', help='eval model and exit')
     # parser.add_argument('--fp16', type=int, default=1, help="FP16 acceleration, use 0/1 for false/true")
     # Requires pytorch>=1.6 to use native fp 16 acceleration (https://pytorch.org/docs/stable/notes/amp_examples.html)
@@ -180,7 +180,7 @@ if __name__ == "__main__":
 
     os.makedirs(cfg.OUTPUT_DIR, exist_ok=True)
     _r = '-r' if args.resume else ''
-    _s = 's' if args.step else ''
+    _s = 's' if args.step < args.iter else ''
     model_fullname = f"{args.name}-bs{args.batch_size:02d}-lr{_s}{args.lr}{_r}".replace('e-0', 'e-')
     logger = setup_logger(cfg.OUTPUT_DIR + '/log.log')
     logger.log(logging.INFO, '\n' + '#' * 80 + '\n')
