@@ -94,12 +94,14 @@ def get_args():
     parser = argparse.ArgumentParser(description='Indoor Fire Load Detection')
 
     parser.add_argument('-n', '--name', type=str, default='R101', help='model name')
-    parser.add_argument('-i', '--iter', type=str, default='1k', help='num of training iterations, k=*1000')
+    parser.add_argument('-i', '--iter', type=str, default='5k', help='num of training iterations, k=*1000')
     parser.add_argument('-b', '--batch_size', type=int, default=4, help='batch size')
     parser.add_argument('-l', '--lr', type=float, default=3e-4, help='learning rate')
     parser.add_argument('-c', '--cuda', type=str, default='0', help='cuda visible device id')
-    parser.add_argument('--eval_only', action='store_true', help='eval model and exit')
     parser.add_argument('-r', '--resume', action='store_true', help='resume training')
+    parser.add_argument('-g', '--gamma', type=float, default=0.1, help='lr gamma')
+    parser.add_argument('-s', '--step', type=int, default=2000, help='lr decrease step')
+    parser.add_argument('--eval_only', action='store_true', help='eval model and exit')
     # parser.add_argument('--fp16', type=int, default=1, help="FP16 acceleration, use 0/1 for false/true")
     # Requires pytorch>=1.6 to use fp 16 acceleration (https://pytorch.org/docs/stable/notes/amp_examples.html)
 
@@ -130,7 +132,8 @@ if __name__ == "__main__":
 
     os.makedirs(cfg.OUTPUT_DIR, exist_ok=True)
     _r = '-r' if args.resume else ''
-    model_fullname = f"{args.name}-bs{args.batch_size:02d}-lr{args.lr}{_r}".replace('e-0', 'e-')
+    _s = 's' if args.step else ''
+    model_fullname = f"{args.name}-bs{args.batch_size:02d}-lr{_s}{args.lr}{_r}".replace('e-0', 'e-')
     logger = setup_logger(cfg.OUTPUT_DIR + '/log.log')
     logger.log(logging.INFO, '\n' + '#' * 80 + '\n')
     logger.log(logging.INFO, 'Args: ' + str(args))
