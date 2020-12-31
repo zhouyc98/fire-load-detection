@@ -75,6 +75,7 @@ class Trainer(DefaultTrainer):
         # logger.info("Model:\n{}".format(model))
         return model
 
+
 def visualize(model_path='model_final.pth', thr_test=0.5, output_dir='./vis', n=6):
     os.makedirs(output_dir, exist_ok=True)
     cfg.MODEL.WEIGHTS = os.path.join(cfg.OUTPUT_DIR, model_path)  # path to the model we just trained
@@ -113,9 +114,9 @@ def get_model_cfg(model_name):
 def get_args():
     parser = argparse.ArgumentParser(description='Indoor Fire Load Detection')
 
-    host_name=socket.gethostname().lower()
-    _bs = {'ms7c98-ubuntu':32,'hsh406-ubuntu':6,'dell-poweredge-t640':10}[host_name]
-    _c = '1' if host_name=='dell-poweredge-t640' else '0'
+    host_name = socket.gethostname().lower()
+    _bs = {'ms7c98-ubuntu': 32, 'hsh406-ubuntu': 6, 'dell-poweredge-t640': 10}[host_name]
+    _c = '1' if host_name == 'dell-poweredge-t640' else '0'
 
     parser.add_argument('-n', '--name', type=str, default='R101', help='model name')
     parser.add_argument('-i', '--iter', type=str, default='1k', help='num of training iterations, k=*1000')
@@ -133,6 +134,25 @@ def get_args():
     args_.iter = int(args_.iter.replace('k', '000'))
 
     return args_
+
+
+def rename_model_files(ap_thr_rm=20):
+    i = str(round(trainer.iter)) + 'k'
+    if ap < ap_thr_rm:
+        with open(cfg.OUTPUT_DIR + '/model_final.pth', 'r+') as fp:
+            fp.truncate()
+    os.rename(cfg.OUTPUT_DIR + '/model_final.pth', cfg.OUTPUT_DIR + f'/{model_fullname}-it{i}-ap{ap:.1f}.pth')
+
+    fns = glob.glob(cfg.OUTPUT_DIR + '/model_0*.pth')
+    for fn in fns:
+        fn1, fn2 = fn.split('_')
+        i = str(round(int(fn2[:-4]) / 1000)) + 'k'
+        os.rename(fn, cfg.OUTPUT_DIR + '/model_final.pth')
+        _, ap_ = evaluate()
+        if ap_ < ap_thr_rm:
+            with open(cfg.OUTPUT_DIR + '/model_final.pth', 'r+') as fp:
+                fp.truncate()
+        os.rename(fn, cfg.OUTPUT_DIR + f'/{model_fullname}-it{i}-ap{ap_:.1f}.pth')
 
 
 if __name__ == "__main__":
@@ -183,6 +203,5 @@ if __name__ == "__main__":
         logger.log(logging.INFO, '==================== KeyboardInterrupt, early stop ====================')
         pass
     res, ap = evaluate()
+    rename_model_file()
     visualize(n=6)
-    shutil.copy(cfg.OUTPUT_DIR + '/model_final.pth', cfg.OUTPUT_DIR + f'/{model_fullname}-ap{ap:.1f}.pth')
-    logger.log(logging.INFO, f'#Training finished: {model_fullname}')
