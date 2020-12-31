@@ -1,4 +1,5 @@
 import os, sys, json, cv2, random
+from datetime import datetime
 
 import argparse
 import shutil
@@ -16,6 +17,7 @@ from detectron2.utils.events import CommonMetricPrinter, JSONWriter, Tensorboard
 from detectron2.checkpoint import DetectionCheckpointer
 from detectron2.utils.visualizer import ColorMode
 from detectron2.data import build_detection_test_loader
+from detectron2.modeling import build_model
 
 from data import *
 
@@ -56,9 +58,22 @@ class Trainer(DefaultTrainer):
             # It may not always print what you want to see, since it prints "common" metrics only.
             CommonMetricPrinter(self.max_iter),
             JSONWriter(os.path.join(self.cfg.OUTPUT_DIR, "metrics.json")),
-            TensorboardXWriter('runs/' + model_fullname),
+            TensorboardXWriter(f"runs/{datetime.now().strftime('%y%m%d-%H%M')} {model_fullname}"),
         ]
 
+    @classmethod
+    def build_model(cls, cfg):
+        """
+        Returns:
+            torch.nn.Module:
+
+        It now calls :func:`detectron2.modeling.build_model`.
+        Overwrite it if you'd like a different model.
+        """
+        model = build_model(cfg)
+        # logger = logging.getLogger(__name__)
+        # logger.info("Model:\n{}".format(model))
+        return model
 
 def visualize(model_path='model_final.pth', thr_test=0.5, output_dir='./vis', n=6):
     os.makedirs(output_dir, exist_ok=True)
@@ -98,20 +113,21 @@ def get_model_cfg(model_name):
 def get_args():
     parser = argparse.ArgumentParser(description='Indoor Fire Load Detection')
 
-    host_name = socket.gethostname().lower()
-    _bs = {'ms7c98-ubuntu': 32, 'hsh406-ubuntu': 6, 'dell-poweredge-t640': 10}[host_name]
+    host_name=socket.gethostname().lower()
+    _bs = {'ms7c98-ubuntu':32,'hsh406-ubuntu':6,'dell-poweredge-t640':10}[host_name]
+    _c = '1' if host_name=='dell-poweredge-t640' else '0'
 
     parser.add_argument('-n', '--name', type=str, default='R101', help='model name')
-    parser.add_argument('-i', '--iter', type=str, default='5k', help='num of training iterations, k=*1000')
+    parser.add_argument('-i', '--iter', type=str, default='1k', help='num of training iterations, k=*1000')
     parser.add_argument('-b', '--batch_size', type=int, default=_bs, help='batch size')
-    parser.add_argument('-l', '--lr', type=float, default=3e-4, help='learning rate')
-    parser.add_argument('-c', '--cuda', type=str, default='0', help='cuda visible device id')
+    parser.add_argument('-l', '--lr', type=float, default=1e-3, help='learning rate')
+    parser.add_argument('-c', '--cuda', type=str, default=_c, help='cuda visible device id')
     parser.add_argument('-r', '--resume', action='store_true', help='resume training')
     parser.add_argument('-g', '--gamma', type=float, default=0.1, help='lr gamma')
     parser.add_argument('-s', '--step', type=int, default=1000, help='lr decrease step')
     parser.add_argument('--eval_only', action='store_true', help='eval model and exit')
     # parser.add_argument('--fp16', type=int, default=1, help="FP16 acceleration, use 0/1 for false/true")
-    # Requires pytorch>=1.6 to use fp 16 acceleration (https://pytorch.org/docs/stable/notes/amp_examples.html)
+    # Requires pytorch>=1.6 to use native fp 16 acceleration (https://pytorch.org/docs/stable/notes/amp_examples.html)
 
     args_ = parser.parse_args()
     args_.iter = int(args_.iter.replace('k', '000'))
@@ -159,12 +175,12 @@ if __name__ == "__main__":
         visualize(n=6)
         exit()
 
-    logger.log(logging.INFO, '==================== Start training ====================')
+    logger.log(logging.INFO, f'==================== Start training [{model_fullname}] ====================')
     trainer.resume_or_load(resume=args.resume)
     try:
         trainer.train()
     except KeyboardInterrupt:
-        logger.log('==================== KeyboardInterrupt, early stop ====================')
+        logger.log(logging.INFO, '==================== KeyboardInterrupt, early stop ====================')
         pass
     res, ap = evaluate()
     visualize(n=6)
