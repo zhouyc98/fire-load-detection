@@ -17,6 +17,7 @@ from detectron2.utils.events import CommonMetricPrinter, JSONWriter, Tensorboard
 from detectron2.checkpoint import DetectionCheckpointer
 from detectron2.utils.visualizer import ColorMode
 from detectron2.data import build_detection_test_loader
+from detectron2.modeling import build_model
 
 from data import *
 
