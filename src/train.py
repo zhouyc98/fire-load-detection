@@ -141,7 +141,7 @@ def rename_model_files(ap_thr_rm=20):
     if ap < ap_thr_rm:
         with open(cfg.OUTPUT_DIR + '/model_final.pth', 'r+') as fp:
             fp.truncate()
-    os.rename(cfg.OUTPUT_DIR + '/model_final.pth', cfg.OUTPUT_DIR + f'/{model_fullname}-it{i}-ap{ap:.1f}.pth')
+    shutil.copy(cfg.OUTPUT_DIR + '/model_final.pth', cfg.OUTPUT_DIR + f'/{model_fullname}-it{i}-ap{ap:.1f}.pth')
 
     fns = glob.glob(cfg.OUTPUT_DIR + '/model_0*.pth')
     for fn in fns:
