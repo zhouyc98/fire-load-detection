@@ -24,7 +24,7 @@ from data import *
 
 class Trainer(DefaultTrainer):
 
-    def __init__(self):
+    def __init__(self, cfg):
         super().__init__(cfg)
         self.start_iter = 1
         self.max_iter += 1
@@ -203,5 +203,5 @@ if __name__ == "__main__":
         logger.log(logging.INFO, '==================== KeyboardInterrupt, early stop ====================')
         pass
     res, ap = evaluate()
-    rename_model_file()
+    rename_model_files()
     visualize(n=6)
