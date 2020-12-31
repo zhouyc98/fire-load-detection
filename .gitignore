@@ -10,6 +10,8 @@ runs/
 models/
 output*/
 
+run.sh
+run*.sh
 *.xlsx
 *.pt
 *.pth
