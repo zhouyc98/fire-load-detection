@@ -1,4 +1,5 @@
 import os, sys, json, cv2, random
+from datetime import datetime
 
 import argparse
 import shutil
@@ -51,7 +52,7 @@ class Trainer(DefaultTrainer):
             # It may not always print what you want to see, since it prints "common" metrics only.
             CommonMetricPrinter(self.max_iter),
             JSONWriter(os.path.join(self.cfg.OUTPUT_DIR, "metrics.json")),
-            TensorboardXWriter('runs/' + model_fullname),
+            TensorboardXWriter(f"runs/{datetime.now().strftime('%y%m%d-%H%M')} {model_fullname}"),
         ]
 
 
@@ -97,16 +98,16 @@ def get_args():
     _bs={'ms7c98-ubuntu':32,'hsh406-ubuntu':6,'dell-poweredge-t640':10}[host_name]
 
     parser.add_argument('-n', '--name', type=str, default='R101', help='model name')
-    parser.add_argument('-i', '--iter', type=str, default='5k', help='num of training iterations, k=*1000')
+    parser.add_argument('-i', '--iter', type=str, default='1k', help='num of training iterations, k=*1000')
     parser.add_argument('-b', '--batch_size', type=int, default=_bs, help='batch size')
-    parser.add_argument('-l', '--lr', type=float, default=3e-4, help='learning rate')
+    parser.add_argument('-l', '--lr', type=float, default=1e-3, help='learning rate')
     parser.add_argument('-c', '--cuda', type=str, default='0', help='cuda visible device id')
     parser.add_argument('-r', '--resume', action='store_true', help='resume training')
     parser.add_argument('-g', '--gamma', type=float, default=0.1, help='lr gamma')
     parser.add_argument('-s', '--step', type=int, default=1000, help='lr decrease step')
     parser.add_argument('--eval_only', action='store_true', help='eval model and exit')
     # parser.add_argument('--fp16', type=int, default=1, help="FP16 acceleration, use 0/1 for false/true")
-    # Requires pytorch>=1.6 to use fp 16 acceleration (https://pytorch.org/docs/stable/notes/amp_examples.html)
+    # Requires pytorch>=1.6 to use native fp 16 acceleration (https://pytorch.org/docs/stable/notes/amp_examples.html)
 
     args_ = parser.parse_args()
     args_.iter = int(args_.iter.replace('k', '000'))
