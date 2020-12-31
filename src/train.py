@@ -22,6 +22,11 @@ from data import *
 
 class Trainer(DefaultTrainer):
 
+    def __init__(self):
+        super().__init__(cfg)
+        self.start_iter = 1
+        self.max_iter += 1
+
     @classmethod
     def build_evaluator(cls, cfg, dataset_name, output_folder=None):
         return COCOEvaluator("indoor_scene_val", ("segm",), False, output_dir=cfg.OUTPUT_DIR + '/eval')
@@ -93,8 +98,8 @@ def get_model_cfg(model_name):
 def get_args():
     parser = argparse.ArgumentParser(description='Indoor Fire Load Detection')
 
-    host_name=socket.gethostname().lower()
-    _bs={'ms7c98-ubuntu':32,'hsh406-ubuntu':6,'dell-poweredge-t640':10}[host_name]
+    host_name = socket.gethostname().lower()
+    _bs = {'ms7c98-ubuntu': 32, 'hsh406-ubuntu': 6, 'dell-poweredge-t640': 10}[host_name]
 
     parser.add_argument('-n', '--name', type=str, default='R101', help='model name')
     parser.add_argument('-i', '--iter', type=str, default='5k', help='num of training iterations, k=*1000')
@@ -157,7 +162,6 @@ if __name__ == "__main__":
     logger.log(logging.INFO, '==================== Start training ====================')
     trainer.resume_or_load(resume=args.resume)
     try:
-        trainer.start_iter = 1
         trainer.train()
     except KeyboardInterrupt:
         logger.log('==================== KeyboardInterrupt, early stop ====================')
