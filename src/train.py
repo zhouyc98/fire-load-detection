@@ -58,7 +58,7 @@ class Trainer(DefaultTrainer):
             # It may not always print what you want to see, since it prints "common" metrics only.
             CommonMetricPrinter(self.max_iter),
             JSONWriter(os.path.join(self.cfg.OUTPUT_DIR, "metrics.json")),
-            TensorboardXWriter(f"runs/{datetime.now().strftime('%y%m%d-%H%M')} {model_fullname}"),
+            TensorboardXWriter(f"runs/{datetime.now().strftime('%m%d-%H%M')} {model_fullname}"),
         ]
 
     @classmethod
