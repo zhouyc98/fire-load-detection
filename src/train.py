@@ -140,7 +140,7 @@ if __name__ == "__main__":
     trainer = Trainer(cfg)
     if args.eval_only:
         trainer.resume_or_load(resume=True)
-        res, ap = evaluate()
+        evaluate()
         visualize(n=6)
         exit()
 
@@ -149,30 +149,5 @@ if __name__ == "__main__":
     trainer.train()
     res, ap = evaluate()
     visualize(n=6)
-    shutil.copy(cfg.OUTPUT_DIR + '/model_final.pth', cfg.OUTPUT_DIR + f'/{model_fullname}-ap{ap * 100:.1f}.pth')
+    shutil.copy(cfg.OUTPUT_DIR + '/model_final.pth', cfg.OUTPUT_DIR + f'/{model_fullname}-ap{ap:.1f}.pth')
     logger.log(logging.INFO, f'#Training finished: {model_fullname}')
-
-"""
--Benchmark
---Tesla T4
-    FP32
-    train: 3.3 images/s, val: 30s once (167 images)
-    1h / 1k-iter (R50-b12)
-    
-    FP16
-    train: * images/s, val: 20s once (167 images)
-    0.65h / 1k-iter (R101-b10, CUDA1)
-    
-    batch size: R50=14, R101=10, X101=10*
-
--R101
-i 500
-    lr 1e-4, AP=2.1, AP50=4.3
-    lr 3e-4, AP=6.0, AP50=11.0
-    lr 1e-3, AP
-i 1000
-    lr 1e-4, AP=8.1, AP50=14.1
-    lr 3e-4, AP=17.7, AP50=30.1
-    lr 1e-3, AP=24.3, AP50=40.2
-
-"""
