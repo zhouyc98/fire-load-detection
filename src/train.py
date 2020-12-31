@@ -108,13 +108,14 @@ def get_args():
     parser = argparse.ArgumentParser(description='Indoor Fire Load Detection')
 
     host_name=socket.gethostname().lower()
-    _bs={'ms7c98-ubuntu':32,'hsh406-ubuntu':6,'dell-poweredge-t640':10}[host_name]
+    _bs = {'ms7c98-ubuntu':32,'hsh406-ubuntu':6,'dell-poweredge-t640':10}[host_name]
+    _c = '1' if host_name=='dell-poweredge-t640' else '0'
 
     parser.add_argument('-n', '--name', type=str, default='R101', help='model name')
     parser.add_argument('-i', '--iter', type=str, default='1k', help='num of training iterations, k=*1000')
     parser.add_argument('-b', '--batch_size', type=int, default=_bs, help='batch size')
     parser.add_argument('-l', '--lr', type=float, default=1e-3, help='learning rate')
-    parser.add_argument('-c', '--cuda', type=str, default='0', help='cuda visible device id')
+    parser.add_argument('-c', '--cuda', type=str, default=_c, help='cuda visible device id')
     parser.add_argument('-r', '--resume', action='store_true', help='resume training')
     parser.add_argument('-g', '--gamma', type=float, default=0.1, help='lr gamma')
     parser.add_argument('-s', '--step', type=int, default=1000, help='lr decrease step')
@@ -174,7 +175,7 @@ if __name__ == "__main__":
         trainer.start_iter = 1
         trainer.train()
     except KeyboardInterrupt:
-        logger.log('==================== KeyboardInterrupt, early stop ====================')
+        logger.log(logging.INFO, '==================== KeyboardInterrupt, early stop ====================')
         pass
     res, ap = evaluate()
     visualize(n=6)
