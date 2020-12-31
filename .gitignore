@@ -6,7 +6,7 @@ bak*/
 csv/
 pred/
 vis/
-runs/*/
+runs/
 models/
 output*/
 
