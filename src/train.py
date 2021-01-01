@@ -26,8 +26,8 @@ class Trainer(DefaultTrainer):
 
     def __init__(self, cfg):
         super().__init__(cfg)
-        self.start_iter = 1
-        self.max_iter += 1
+        # self.start_iter = 1
+        # self.max_iter += 1
 
     @classmethod
     def build_evaluator(cls, cfg, dataset_name, output_folder=None):
@@ -137,19 +137,20 @@ def get_args():
 
 
 def rename_model_files(ap_thr_rm=20):
-    i = str(round(trainer.iter)) + 'k'
-    shutil.copy(cfg.OUTPUT_DIR + '/model_final.pth', cfg.OUTPUT_DIR + f'/{model_fullname}-it{i}-ap{ap:.1f}.pth')
+    model_final_path = cfg.OUTPUT_DIR + '/model_final.pth'
+    i = str(round(trainer.iter / 1000)) + 'k'
+    shutil.copy(model_final_path, cfg.OUTPUT_DIR + f'/{model_fullname}-it{i}-ap{ap:.1f}.pth')
 
     fns = glob.glob(cfg.OUTPUT_DIR + '/model_0*.pth')
     for fn in fns:
         fn1, fn2 = fn.split('_')
         i = str(round(int(fn2[:-4]) / 1000)) + 'k'
-        os.rename(fn, cfg.OUTPUT_DIR + '/model_final.pth')
+        os.rename(fn, model_final_path)
         _, ap_ = evaluate()
         if ap_ < ap_thr_rm:
-            with open(cfg.OUTPUT_DIR + '/model_final.pth', 'r+') as fp:
+            with open(model_final_path, 'r+') as fp:
                 fp.truncate()
-        os.rename(fn, cfg.OUTPUT_DIR + f'/{model_fullname}-it{i}-ap{ap_:.1f}.pth')
+        os.rename(model_final_path, cfg.OUTPUT_DIR + f'/{model_fullname}-it{i}-ap{ap_:.1f}.pth')
 
 
 if __name__ == "__main__":
