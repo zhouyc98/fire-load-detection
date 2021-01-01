@@ -136,7 +136,8 @@ def get_args():
         bs_dict = {'R50': {'hsh406-ubuntu': 10, 'ms7c98-ubuntu': 40, 'dell-poweredge-t640': 12},
                    'R101': {'hsh406-ubuntu': 5, 'ms7c98-ubuntu': 30, 'dell-poweredge-t640': 10},
                    'X101': {'hsh406-ubuntu': 4, 'ms7c98-ubuntu': 20, 'dell-poweredge-t640': 6}}
-        args_.batch_size = bs_dict[args_.name][host_name]
+        name1 = args_.name[:3] if args_.name[:3]=='R50' else args_.name[:4]
+        args_.batch_size = bs_dict[name1][host_name]
     if not args_.cuda:
         args_.cuda = '1' if host_name == 'dell-poweredge-t640' else '0'
 
