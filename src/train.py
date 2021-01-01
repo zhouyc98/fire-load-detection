@@ -55,11 +55,14 @@ class Trainer(DefaultTrainer):
         """
         # Here the default print/log frequency of each writer is used.
         n1 = {'ms7c98-ubuntu': 'S', 'hsh406-ubuntu': 'Z', 'dell-poweredge-t640': 'D'}[socket.gethostname().lower()]
+        dt_now=datetime.now().strftime('%m%d-%H%M')
+        with open(cfg.OUTPUT_DIR+'/metrics.json','a') as fp:
+            fp.write(f'\n\n[{dt_now}] {model_fullname} ==========\n')
         return [
             # It may not always print what you want to see, since it prints "common" metrics only.
             CommonMetricPrinter(self.max_iter),
             JSONWriter(os.path.join(self.cfg.OUTPUT_DIR, "metrics.json")),
-            TensorboardXWriter(f"runs/{n1} {datetime.now().strftime('%m%d-%H%M')} {model_fullname}"),
+            TensorboardXWriter(f"runs/{n1} {dt_now} {model_fullname}"),
         ]
 
     @classmethod
@@ -81,7 +84,11 @@ def visualize(model_path='model_final.pth', thr_test=0.2, output_dir='./vis', n=
     os.makedirs(output_dir, exist_ok=True)
     cfg.MODEL.WEIGHTS = os.path.join(cfg.OUTPUT_DIR, model_path)  # path to the model we just trained
     cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = thr_test  # set a custom testing threshold
-    predictor = DefaultPredictor(cfg)
+    try:
+        predictor = DefaultPredictor(cfg)
+    except EOFError:
+        logger.info('Skip: model invalid for visualization, consider reduce the ap_thr_rm')
+        return
     val_dataset_dicts = get_indoor_scene_dicts('../data/indoor-scene/val')
     if n < 0:
         n = len(val_dataset_dicts)
