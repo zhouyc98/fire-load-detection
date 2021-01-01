@@ -77,7 +77,7 @@ class Trainer(DefaultTrainer):
         return model
 
 
-def visualize(model_path='model_final.pth', thr_test=0.5, output_dir='./vis', n=6):
+def visualize(model_path='model_final.pth', thr_test=0.2, output_dir='./vis', n=6):
     os.makedirs(output_dir, exist_ok=True)
     cfg.MODEL.WEIGHTS = os.path.join(cfg.OUTPUT_DIR, model_path)  # path to the model we just trained
     cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = thr_test  # set a custom testing threshold
@@ -148,7 +148,8 @@ def get_args():
 def rename_model_files():
     model_final_path = cfg.OUTPUT_DIR + '/model_final.pth'
     i = str(round(trainer.iter / 1000)) + 'k'
-    shutil.copy(model_final_path, cfg.OUTPUT_DIR + f'/{model_fullname}-it{i}-ap{ap:.1f}.pth')
+    ap_fns = {ap: f'{cfg.OUTPUT_DIR}/{model_fullname}-it{i}-ap{ap:.1f}.pth'}
+    shutil.copy(model_final_path, ap_fns[ap])
 
     fns = glob.glob(cfg.OUTPUT_DIR + '/model_0*.pth')
     for fn in fns:
@@ -160,9 +161,10 @@ def rename_model_files():
         if ap_ < args.ap_thr_rm:
             with open(model_final_path, 'r+') as fp:
                 fp.truncate()
-        os.rename(model_final_path, cfg.OUTPUT_DIR + f'/{model_fullname}-it{i}-ap{ap_:.1f}.pth')
-
-    shutil.copy(cfg.OUTPUT_DIR + f'/{model_fullname}-it{i}-ap{ap:.1f}.pth', model_final_path)  # for resume
+        ap_fns[ap_] = f'{cfg.OUTPUT_DIR}/{model_fullname}-it{i}-ap{ap_:.1f}.pth'
+        os.rename(model_final_path, ap_fns[ap_])
+    
+    shutil.copy(ap_fns[max(ap_fns)], model_final_path)  # for resume
 
 
 if __name__ == "__main__":
@@ -185,7 +187,7 @@ if __name__ == "__main__":
     cfg.SOLVER.BASE_LR = args.lr
     cfg.SOLVER.GAMMA = args.gamma
     cfg.SOLVER.STEPS = (args.step,)
-    cfg.SOLVER.WARMUP_ITERS = 200
+    cfg.SOLVER.WARMUP_ITERS = 100
     cfg.SOLVER.CHECKPOINT_PERIOD = 1000
 
     os.makedirs(cfg.OUTPUT_DIR, exist_ok=True)
