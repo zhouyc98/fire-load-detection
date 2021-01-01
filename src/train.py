@@ -105,9 +105,9 @@ def evaluate():
 
 def get_model_cfg(model_name):
     pre = 'COCO-InstanceSegmentation/mask_rcnn_'
-    post = '_3x.yaml'
+    post = '_1x.yaml' if model_name.endswith('_1x') else '_3x.yaml'
     model_cfg_dict = {'R50': 'R_50_FPN', 'R101': 'R_101_FPN', 'X101': 'X_101_32x8d_FPN',
-                      'R101C4': 'R_101_C4', 'R101DC5': 'R_101_DC5'}
+                      'R101C4': 'R_101_C4', 'R101DC5': 'R_101_DC5', 'R50_1x':'R_50_FPN'}
 
     return pre + model_cfg_dict[model_name] + post
 
