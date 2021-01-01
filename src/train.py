@@ -170,7 +170,7 @@ if __name__ == "__main__":
     cfg.SOLVER.AMP.ENABLED = True
     cfg.SOLVER.MAX_ITER = args.iter  # epochs = batch_size * iter / n_images
     cfg.SOLVER.IMS_PER_BATCH = args.batch_size  # global batch_size
-    cfg.TEST.EVAL_PERIOD = 500
+    cfg.TEST.EVAL_PERIOD = 200
     cfg.SOLVER.BASE_LR = args.lr
     cfg.SOLVER.GAMMA = args.gamma
     cfg.SOLVER.STEPS = (args.step,)
