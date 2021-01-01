@@ -116,7 +116,7 @@ def get_args():
     parser = argparse.ArgumentParser(description='Indoor Fire Load Detection')
 
     host_name = socket.gethostname().lower()
-    _bs = {'ms7c98-ubuntu': 32, 'hsh406-ubuntu': 6, 'dell-poweredge-t640': 10}[host_name]
+    _bs = {'ms7c98-ubuntu': 32, 'hsh406-ubuntu': 5, 'dell-poweredge-t640': 10}[host_name]
     _c = '1' if host_name == 'dell-poweredge-t640' else '0'
 
     parser.add_argument('-n', '--name', type=str, default='R101', help='model name')
@@ -128,6 +128,7 @@ def get_args():
     parser.add_argument('-g', '--gamma', type=float, default=0.1, help='lr gamma')
     parser.add_argument('-s', '--step', type=int, default=100000, help='lr decrease step')
     parser.add_argument('--eval_only', action='store_true', help='eval model and exit')
+    parser.add_argument('--ap_thr_rm', type=float, default=23, help='rm model.pth which has ap lower than the thr')
     # parser.add_argument('--fp16', type=int, default=1, help="FP16 acceleration, use 0/1 for false/true")
     # Requires pytorch>=1.6 to use native fp 16 acceleration (https://pytorch.org/docs/stable/notes/amp_examples.html)
 
@@ -137,7 +138,9 @@ def get_args():
     return args_
 
 
-def rename_model_files(ap_thr_rm=20):
+def rename_model_files(ap_thr_rm=-1):
+    if ap_thr_rm < 0:
+        ap_thr_rm = args.ap_thr_rm
     model_final_path = cfg.OUTPUT_DIR + '/model_final.pth'
     i = str(round(trainer.iter / 1000)) + 'k'
     shutil.copy(model_final_path, cfg.OUTPUT_DIR + f'/{model_fullname}-it{i}-ap{ap:.1f}.pth')
