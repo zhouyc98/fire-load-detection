@@ -146,12 +146,15 @@ def rename_model_files(ap_thr_rm=20):
     for fn in fns:
         fn1, fn2 = fn.split('_')
         i = str(round(int(fn2[:-4]) / 1000)) + 'k'
+        print(f'=== Eval {os.path.split(fn)[1]} ===')
         os.rename(fn, model_final_path)
         _, ap_ = evaluate()
         if ap_ < ap_thr_rm:
             with open(model_final_path, 'r+') as fp:
                 fp.truncate()
         os.rename(model_final_path, cfg.OUTPUT_DIR + f'/{model_fullname}-it{i}-ap{ap_:.1f}.pth')
+
+    shutil.copy(cfg.OUTPUT_DIR + f'/{model_fullname}-it{i}-ap{ap:.1f}.pth', model_final_path)  # for resume
 
 
 if __name__ == "__main__":
@@ -178,7 +181,7 @@ if __name__ == "__main__":
     cfg.SOLVER.CHECKPOINT_PERIOD = 1000
 
     os.makedirs(cfg.OUTPUT_DIR, exist_ok=True)
-    _lr = (str(args.lr * 1000) + '/k').replace('.0/k', '/k')
+    _lr = (str(args.lr * 1000) + '_k').replace('.0_k', '_k')
     _r = '-r' if args.resume else ''
     _s = 's' if args.step < args.iter else ''
     model_fullname = f"{args.name}-bs{args.batch_size:02d}-lr{_s}{_lr}{_r}".replace('e-0', 'e-')
