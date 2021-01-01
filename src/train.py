@@ -177,9 +177,10 @@ if __name__ == "__main__":
     cfg.SOLVER.CHECKPOINT_PERIOD = 1000
 
     os.makedirs(cfg.OUTPUT_DIR, exist_ok=True)
+    _lr = (str(args.lr * 1000) + '/k').replace('.0/k', '/k')
     _r = '-r' if args.resume else ''
     _s = 's' if args.step < args.iter else ''
-    model_fullname = f"{args.name}-bs{args.batch_size:02d}-lr{_s}{args.lr}{_r}".replace('e-0', 'e-')
+    model_fullname = f"{args.name}-bs{args.batch_size:02d}-lr{_s}{_lr}{_r}".replace('e-0', 'e-')
     logger = setup_logger(cfg.OUTPUT_DIR + '/log.log')
     logger.log(logging.INFO, '\n' + '#' * 80 + '\n')
     logger.log(logging.INFO, 'Args: ' + str(args))
