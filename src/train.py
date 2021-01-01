@@ -27,7 +27,7 @@ class Trainer(DefaultTrainer):
     def __init__(self, cfg):
         super().__init__(cfg)
         # self.start_iter = 1
-        # self.max_iter += 1
+        self.max_iter -= 1  # avoid eval twice in the last
 
     @classmethod
     def build_evaluator(cls, cfg, dataset_name, output_folder=None):
@@ -183,10 +183,10 @@ if __name__ == "__main__":
     _s = 's' if args.step < args.iter else ''
     model_fullname = f"{args.name}-bs{args.batch_size:02d}-lr{_s}{_lr}{_r}".replace('e-0', 'e-')
     logger = setup_logger(cfg.OUTPUT_DIR + '/log.log')
-    logger.log(logging.INFO, '\n' + '#' * 80 + '\n')
-    logger.log(logging.INFO, 'Args: ' + str(args))
-    logger.log(logging.INFO, 'Model full name: ' + model_fullname)
-    logger.log(logging.INFO, 'Model cfg: ' + model_cfg)
+    logger.info('\n' + '#' * 80 + '\n')
+    logger.info('Args: ' + str(args))
+    logger.info('Model full name: ' + model_fullname)
+    logger.info('Model cfg: ' + model_cfg)
 
     trainer = Trainer(cfg)
     if args.eval_only:
@@ -195,12 +195,12 @@ if __name__ == "__main__":
         visualize(n=6)
         exit()
 
-    logger.log(logging.INFO, f'==================== Start training [{model_fullname}] ====================')
+    logger.info(f'==================== Start training [{model_fullname}] ====================')
     trainer.resume_or_load(resume=args.resume)
     try:
         trainer.train()
     except KeyboardInterrupt:
-        logger.log(logging.INFO, '==================== KeyboardInterrupt, early stop ====================')
+        logger.info('==================== KeyboardInterrupt, early stop ====================')
         pass
     res, ap = evaluate()
     rename_model_files()
