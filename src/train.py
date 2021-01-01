@@ -57,7 +57,7 @@ class Trainer(DefaultTrainer):
         n1 = {'ms7c98-ubuntu': 'S', 'hsh406-ubuntu': 'Z', 'dell-poweredge-t640': 'D'}[socket.gethostname().lower()]
         dt_now=datetime.now().strftime('%m%d-%H%M')
         with open(cfg.OUTPUT_DIR+'/metrics.json','a') as fp:
-            fp.write(f'\n\n[{dt_now}] {model_fullname} ==========\n')
+            fp.write(f'\n# [{dt_now}] {model_fullname} ==========\n')
         return [
             # It may not always print what you want to see, since it prints "common" metrics only.
             CommonMetricPrinter(self.max_iter),
