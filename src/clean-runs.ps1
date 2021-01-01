@@ -1,4 +1,5 @@
 cd $PSScriptRoot
+
 $fs=dir ./runs -File -Recurse -Exclude *.ps1 | ?{$_.Length -lt 30000} # files that size < 3KB
 $ds=dir ./runs -Directory | ?{(dir $_.FullName | measure).Count -eq 0} # empty folders
 
