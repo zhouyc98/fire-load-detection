@@ -194,7 +194,7 @@ if __name__ == "__main__":
     _s = 's' if args.step < args.iter else ''
     model_fullname = f"{args.name}-bs{args.batch_size:02d}-lr{_s}{_lr}{_r}".replace('e-0', 'e-')
     logger = setup_logger(cfg.OUTPUT_DIR + '/log.log')
-    logger.info('\n' + '#' * 80 + '\n')
+    logger.info('#' * 100 + '\n')
     logger.info('Args: ' + str(args))
     logger.info('Model full name: ' + model_fullname)
     logger.info('Model cfg: ' + model_cfg)
