@@ -115,15 +115,11 @@ def get_model_cfg(model_name):
 def get_args():
     parser = argparse.ArgumentParser(description='Indoor Fire Load Detection')
 
-    host_name = socket.gethostname().lower()
-    _bs = {'ms7c98-ubuntu': 32, 'hsh406-ubuntu': 5, 'dell-poweredge-t640': 10}[host_name]
-    _c = '1' if host_name == 'dell-poweredge-t640' else '0'
-
     parser.add_argument('-n', '--name', type=str, default='R101', help='model name')
     parser.add_argument('-i', '--iter', type=str, default='1k', help='num of training iterations, k=*1000')
-    parser.add_argument('-b', '--batch_size', type=int, default=_bs, help='batch size')
+    parser.add_argument('-b', '--batch_size', type=int, default=-1, help='batch size')
     parser.add_argument('-l', '--lr', type=float, default=1e-3, help='learning rate')
-    parser.add_argument('-c', '--cuda', type=str, default=_c, help='cuda visible device id')
+    parser.add_argument('-c', '--cuda', type=str, default='', help='cuda visible device id')
     parser.add_argument('-r', '--resume', action='store_true', help='resume training')
     parser.add_argument('-g', '--gamma', type=float, default=0.1, help='lr gamma')
     parser.add_argument('-s', '--step', type=int, default=100000, help='lr decrease step')
@@ -134,6 +130,15 @@ def get_args():
 
     args_ = parser.parse_args()
     args_.iter = int(args_.iter.replace('k', '000'))
+
+    host_name = socket.gethostname().lower()
+    if args_.bs < 0:
+        bs_dict = {'R50': {'hsh406-ubuntu': 10, 'ms7c98-ubuntu': 64, 'dell-poweredge-t640': 12},
+                   'R101': {'hsh406-ubuntu': 5, 'ms7c98-ubuntu': 32, 'dell-poweredge-t640': 10},
+                   'X101': {'hsh406-ubuntu': 4, 'ms7c98-ubuntu': 24, 'dell-poweredge-t640': 6}}
+        args_.bs = bs_dict[args_.name][host_name]
+    if not args_.cuda:
+        args_.cuda = '1' if host_name == 'dell-poweredge-t640' else '0'
 
     return args_
 
