@@ -5,6 +5,7 @@ data/
 bak*/
 csv/
 preds/
+tests/
 vis/
 runs/
 models/
