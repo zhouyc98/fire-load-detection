@@ -87,7 +87,7 @@ def visualize(model_path='model_final.pth', thr_test=0.2, output_dir='./preds', 
     try:
         predictor = DefaultPredictor(cfg)
     except EOFError:
-        logger.info('Skip: model invalid for visualization, consider reduce the ap_thr_rm')
+        logger.info('Skip: model invalid for visualization, consider reduce the ap_thr')
         return
     val_dataset_dicts = get_indoor_scene_dicts('../data/indoor-scene/val')
     if n < 0:
@@ -132,7 +132,7 @@ def get_args():
     parser.add_argument('-g', '--gamma', type=float, default=0.1, help='lr gamma')
     parser.add_argument('-s', '--step', type=int, default=100000, help='lr decrease step')
     parser.add_argument('--eval_only', action='store_true', help='eval model and exit')
-    parser.add_argument('--ap_thr_rm', type=float, default=22, help='rm model.pth which has ap lower than the thr')
+    parser.add_argument('--ap_thr', type=float, default=22, help='rm model.pth which has ap lower than the thr')
     # parser.add_argument('--fp16', type=int, default=1, help="FP16 acceleration, use 0/1 for false/true")
     # Requires pytorch>=1.6 to use native fp 16 acceleration (https://pytorch.org/docs/stable/notes/amp_examples.html)
 
@@ -167,7 +167,7 @@ def rename_model_files():
         logger.info(f'===== Eval {os.path.split(fn)[1]} =====')
         os.rename(fn, model_final_path)
         _, ap_ = evaluate()
-        if ap_ < args.ap_thr_rm:
+        if ap_ < args.ap_thr:
             with open(model_final_path, 'r+') as fp:
                 fp.truncate()
         ap_fns[ap_] = f'{cfg.OUTPUT_DIR}/{model_fullname}-it{i}-ap{ap_:.1f}.pth'
