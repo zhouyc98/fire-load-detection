@@ -80,7 +80,7 @@ class Trainer(DefaultTrainer):
         return model
 
 
-def visualize(model_path='model_final.pth', thr_test=0.2, output_dir='./vis', n=6):
+def visualize(model_path='model_final.pth', thr_test=0.2, output_dir='./preds', n=4):
     os.makedirs(output_dir, exist_ok=True)
     cfg.MODEL.WEIGHTS = os.path.join(cfg.OUTPUT_DIR, model_path)  # path to the model we just trained
     cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = thr_test  # set a custom testing threshold
@@ -137,7 +137,9 @@ def get_args():
     # Requires pytorch>=1.6 to use native fp 16 acceleration (https://pytorch.org/docs/stable/notes/amp_examples.html)
 
     args_ = parser.parse_args()
-    args_.iter = int(args_.iter.replace('k', '000'))
+
+    assert args_.iter[-1]=='k'
+    args_.iter = int(float(args_.iter[:-1])*1000)
 
     host_name = socket.gethostname().lower()
     if args_.batch_size < 0:
@@ -154,14 +156,14 @@ def get_args():
 
 def rename_model_files():
     model_final_path = cfg.OUTPUT_DIR + '/model_final.pth'
-    i = str(round(trainer.iter / 1000)) + 'k'
+    i = f'{round(trainer.iter / 1000, 1):g}k' # use g format to drop trailing zeros
     ap_fns = {ap: f'{cfg.OUTPUT_DIR}/{model_fullname}-it{i}-ap{ap:.1f}.pth'}
     shutil.copy(model_final_path, ap_fns[ap])
 
     fns = glob.glob(cfg.OUTPUT_DIR + '/model_0*.pth')
     for fn in fns:
         fn1, fn2 = fn.split('_')
-        i = str(round(int(fn2[:-4]) / 1000)) + 'k'
+        i = f'{round(int(fn2[:-4]) / 1000, 1):g}k'
         print(f'=== Eval {os.path.split(fn)[1]} ===')
         os.rename(fn, model_final_path)
         _, ap_ = evaluate()
@@ -190,15 +192,15 @@ if __name__ == "__main__":
     cfg.SOLVER.AMP.ENABLED = True
     cfg.SOLVER.MAX_ITER = args.iter  # epochs = batch_size * iter / n_images
     cfg.SOLVER.IMS_PER_BATCH = args.batch_size  # global batch_size
-    cfg.TEST.EVAL_PERIOD = 200
+    cfg.TEST.EVAL_PERIOD = 250
     cfg.SOLVER.BASE_LR = args.lr
     cfg.SOLVER.GAMMA = args.gamma
     cfg.SOLVER.STEPS = (args.step,)
     cfg.SOLVER.WARMUP_ITERS = 100
-    cfg.SOLVER.CHECKPOINT_PERIOD = 1000
+    cfg.SOLVER.CHECKPOINT_PERIOD = 500
 
     os.makedirs(cfg.OUTPUT_DIR, exist_ok=True)
-    _lr = (str(args.lr * 1000) + '_k').replace('.0_k', '_k')
+    _lr = f'{args.lr * 1000:g}_k'
     _r = '-r' if args.resume else ''
     _s = 's' if args.step < args.iter else ''
     model_fullname = f"{args.name}-bs{args.batch_size:02d}-lr{_s}{_lr}{_r}".replace('e-0', 'e-')
@@ -212,7 +214,7 @@ if __name__ == "__main__":
     if args.eval_only:
         trainer.resume_or_load(resume=True)
         evaluate()
-        visualize(n=6)
+        visualize()
         exit()
 
     logger.info(f'==================== Start training [{model_fullname}] ====================')
@@ -224,4 +226,4 @@ if __name__ == "__main__":
         pass
     res, ap = evaluate()
     rename_model_files()
-    visualize(n=6)
+    visualize()
