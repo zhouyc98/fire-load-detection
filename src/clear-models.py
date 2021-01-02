@@ -4,7 +4,7 @@ import glob
 def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('-c', '--cuda', type=str, default='0', help='cuda visible device id')
-    parser.add_argument('-t', '--ap_thr', type=float, default=24, help='ap threshold to clear')
+    parser.add_argument('-t', '--ap_thr', type=float, default=23, help='ap threshold to clear')
     
     return parser.parse_args()
 
