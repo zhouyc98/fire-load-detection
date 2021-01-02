@@ -188,6 +188,7 @@ if __name__ == "__main__":
     cfg.DATASETS.TRAIN = ('indoor_scene_train',)
     cfg.DATASETS.TEST = ('indoor_scene_val',)
     cfg.OUTPUT_DIR = './output' + args.cuda
+    cfg.SEED = 7
     cfg.MODEL.ROI_HEADS.NUM_CLASSES = 5
     cfg.SOLVER.AMP.ENABLED = True
     cfg.SOLVER.MAX_ITER = args.iter  # epochs = batch_size * iter / n_images
