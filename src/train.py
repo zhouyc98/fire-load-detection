@@ -156,15 +156,15 @@ def get_args():
 
 def rename_model_files():
     model_final_path = cfg.OUTPUT_DIR + '/model_final.pth'
-    i = f'{round(trainer.iter / 1000, 1):g}k' # use g format to drop trailing zeros
+    i = f'{round(trainer.iter / 1000, 1)}k' # can use :g format to drop trailing zeros
     ap_fns = {ap: f'{cfg.OUTPUT_DIR}/{model_fullname}-it{i}-ap{ap:.1f}.pth'}
     shutil.copy(model_final_path, ap_fns[ap])
 
     fns = glob.glob(cfg.OUTPUT_DIR + '/model_0*.pth')
     for fn in fns:
         fn1, fn2 = fn.split('_')
-        i = f'{round(int(fn2[:-4]) / 1000, 1):g}k'
-        print(f'=== Eval {os.path.split(fn)[1]} ===')
+        i = f'{round(int(fn2[:-4]) / 1000, 1)}k'
+        logger.info(f'===== Eval {os.path.split(fn)[1]} =====')
         os.rename(fn, model_final_path)
         _, ap_ = evaluate()
         if ap_ < args.ap_thr_rm:
@@ -200,7 +200,7 @@ if __name__ == "__main__":
     cfg.SOLVER.CHECKPOINT_PERIOD = 500
 
     os.makedirs(cfg.OUTPUT_DIR, exist_ok=True)
-    _lr = f'{args.lr * 1000:g}_k'
+    _lr = f'{args.lr * 1000}_k'
     _r = '-r' if args.resume else ''
     _s = 's' if args.step < args.iter else ''
     model_fullname = f"{args.name}-bs{args.batch_size:02d}-lr{_s}{_lr}{_r}".replace('e-0', 'e-')
