@@ -24,7 +24,7 @@ Category_Ids = {c: i for i, c in enumerate(Categories)}
 Id_Categories = {i: c for i, c in enumerate(Categories)}
 
 
-def get_indoor_scene_dicts(data_dir='../data/indoor-scene/trainval1025/', trainval='train'):
+def get_indoor_scene_dicts(data_dir='../data/indoor-scene/trainval835/', trainval='train'):
     data_dir += trainval
     data_dir = os.path.abspath(data_dir)
     json_paths = glob.glob(f'{data_dir}/*.json')
