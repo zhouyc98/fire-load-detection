@@ -125,7 +125,7 @@ def get_args():
 
     parser.add_argument('-n', '--name', type=str, default='R101', help='model name')
     parser.add_argument('-i', '--iter', type=str, default='1k', help='num of training iterations, k=*1000')
-    parser.add_argument('-b', '--batch_size', type=int, default=-1, help='batch size')
+    parser.add_argument('-b', '--batch_size', type=int, default=4, help='batch size')
     parser.add_argument('-l', '--lr', type=float, default=1e-3, help='learning rate')
     parser.add_argument('-c', '--cuda', type=str, default='', help='cuda visible device id')
     parser.add_argument('-r', '--resume', action='store_true', help='resume training')
@@ -142,14 +142,14 @@ def get_args():
     args_.iter = int(float(args_.iter[:-1])*1000)
 
     host_name = socket.gethostname().lower()
-    if args_.batch_size < 0:
-        bs_dict = {'R50': {'hsh406-ubuntu': 10, 'ms7c98-ubuntu': 40, 'dell-poweredge-t640': 12},
-                   'R101': {'hsh406-ubuntu': 5, 'ms7c98-ubuntu': 30, 'dell-poweredge-t640': 10},
-                   'X101': {'hsh406-ubuntu': 4, 'ms7c98-ubuntu': 20, 'dell-poweredge-t640': 6}}
-        name1 = args_.name[:3] if args_.name[:3]=='R50' else args_.name[:4]
-        args_.batch_size = bs_dict[name1][host_name]
     if not args_.cuda:
         args_.cuda = '1' if host_name == 'dell-poweredge-t640' else '0'
+    # if args_.batch_size < 0:
+    #     bs_dict = {'R50': {'hsh406-ubuntu': 10, 'ms7c98-ubuntu': 40, 'dell-poweredge-t640': 12},
+    #                'R101': {'hsh406-ubuntu': 5, 'ms7c98-ubuntu': 30, 'dell-poweredge-t640': 10},
+    #                'X101': {'hsh406-ubuntu': 4, 'ms7c98-ubuntu': 20, 'dell-poweredge-t640': 6}}
+    #     name1 = args_.name[:3] if args_.name[:3]=='R50' else args_.name[:4]
+    #     args_.batch_size = bs_dict[name1][host_name]
 
     return args_
 
@@ -157,8 +157,8 @@ def get_args():
 def rename_model_files():
     model_final_path = cfg.OUTPUT_DIR + '/model_final.pth'
     i = f'{round(trainer.iter / 1000, 1)}k' # can use :g format to drop trailing zeros
-    ap_fns = {ap: f'{cfg.OUTPUT_DIR}/{model_fullname}-it{i}-ap{ap:.1f}.pth'}
-    shutil.copy(model_final_path, ap_fns[ap])
+    ap_fns = [(ap, f'{cfg.OUTPUT_DIR}/{model_fullname}-it{i}-ap{ap:.1f}.pth')]
+    os.rename(model_final_path, ap_fns[-1][1])
 
     fns = glob.glob(cfg.OUTPUT_DIR + '/model_0*.pth')
     for fn in fns:
@@ -166,14 +166,20 @@ def rename_model_files():
         i = f'{round(int(fn2[:-4]) / 1000, 1)}k'
         logger.info(f'===== Eval {os.path.split(fn)[1]} =====')
         os.rename(fn, model_final_path)
-        _, ap_ = evaluate()
-        if ap_ < args.ap_thr:
-            with open(model_final_path, 'r+') as fp:
-                fp.truncate()
-        ap_fns[ap_] = f'{cfg.OUTPUT_DIR}/{model_fullname}-it{i}-ap{ap_:.1f}.pth'
-        os.rename(model_final_path, ap_fns[ap_])
+        trainer.resume_or_load(resume=True)
+        _, ap = evaluate()
+        logger.info('Eval AP: ' + str(ap)) # TODO test in pycharm
+        ap_fns.append((ap, f'{cfg.OUTPUT_DIR}/{model_fullname}-it{i}-ap{ap:.1f}.pth'))
+        os.rename(model_final_path, ap_fns[-1][1])
+
+    print(ap_fns)
+    # clear models
+    ap_fns.sort(key=lambda x: x[0])
+    for _, fn in ap_fns[:-1]:
+        os.remove(fn)
     
-    shutil.copy(ap_fns[max(ap_fns)], model_final_path)  # for resume
+    # for resume
+    shutil.copy(ap_fns[-1][1], model_final_path)
 
 
 if __name__ == "__main__":
@@ -201,7 +207,7 @@ if __name__ == "__main__":
     cfg.SOLVER.CHECKPOINT_PERIOD = 500
 
     os.makedirs(cfg.OUTPUT_DIR, exist_ok=True)
-    _lr = f'{args.lr * 1000}_k'
+    _lr = f'{args.lr * 1000}x' # 1x = 1/1000
     _r = '-r' if args.resume else ''
     _s = 's' if args.step < args.iter else ''
     model_fullname = f"{args.name}-bs{args.batch_size:02d}-lr{_s}{_lr}{_r}".replace('e-0', 'e-')
