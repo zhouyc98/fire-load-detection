@@ -54,7 +54,8 @@ class Trainer(DefaultTrainer):
 
         """
         # Here the default print/log frequency of each writer is used.
-        n1 = {'ms7c98-ubuntu': 'S', 'hsh406-ubuntu': 'Z', 'dell-poweredge-t640': 'D'}[socket.gethostname().lower()]
+        n1 = {'ms7c98-ubuntu': 'S', 'hsh406-ubuntu': 'Z', 'dell-poweredge-t640': 'D', 'quincy-ubuntu': 'Y'}[
+            socket.gethostname().lower()]
         dt_now = datetime.now().strftime('%m%d-%H%M')
         with open(cfg.OUTPUT_DIR + '/metrics.json', 'a') as fp:
             fp.write(f'\n# [{dt_now}] {model_fullname} ==========\n')
