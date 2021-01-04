@@ -24,7 +24,8 @@ Category_Ids = {c: i for i, c in enumerate(Categories)}
 Id_Categories = {i: c for i, c in enumerate(Categories)}
 
 
-def get_indoor_scene_dicts(data_dir='../data/indoor-scene/train'):
+def get_indoor_scene_dicts(data_dir='../data/indoor-scene/trainval1025/', trainval='train'):
+    data_dir += trainval
     data_dir = os.path.abspath(data_dir)
     json_paths = glob.glob(f'{data_dir}/*.json')
 
@@ -56,10 +57,10 @@ def get_indoor_scene_dicts(data_dir='../data/indoor-scene/train'):
 
 
 def register_dataset():
-    DatasetCatalog.register('indoor_scene_train', lambda: get_indoor_scene_dicts('../data/indoor-scene/train'))
+    DatasetCatalog.register('indoor_scene_train', lambda: get_indoor_scene_dicts(trainval='train'))
     MetadataCatalog.get('indoor_scene_train').thing_classes = Categories
 
-    DatasetCatalog.register('indoor_scene_val', lambda: get_indoor_scene_dicts('../data/indoor-scene/val'))
+    DatasetCatalog.register('indoor_scene_val', lambda: get_indoor_scene_dicts(trainval='val'))
     MetadataCatalog.get('indoor_scene_val').thing_classes = Categories
     # MetadataCatalog.get('indoor_scene_val').evaluator_type = 'coco'
 
