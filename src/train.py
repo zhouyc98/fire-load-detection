@@ -55,8 +55,8 @@ class Trainer(DefaultTrainer):
         """
         # Here the default print/log frequency of each writer is used.
         n1 = {'ms7c98-ubuntu': 'S', 'hsh406-ubuntu': 'Z', 'dell-poweredge-t640': 'D'}[socket.gethostname().lower()]
-        dt_now=datetime.now().strftime('%m%d-%H%M')
-        with open(cfg.OUTPUT_DIR+'/metrics.json','a') as fp:
+        dt_now = datetime.now().strftime('%m%d-%H%M')
+        with open(cfg.OUTPUT_DIR + '/metrics.json', 'a') as fp:
             fp.write(f'\n# [{dt_now}] {model_fullname} ==========\n')
         return [
             # It may not always print what you want to see, since it prints "common" metrics only.
@@ -80,16 +80,16 @@ class Trainer(DefaultTrainer):
         return model
 
 
-def visualize(model_path='model_final.pth', thr_test=0.2, output_dir='./preds', n=4):
+def visualize_preds(model_path='model_final.pth', thr_test=0.2, output_dir='./preds', n=4):
     os.makedirs(output_dir, exist_ok=True)
     cfg.MODEL.WEIGHTS = os.path.join(cfg.OUTPUT_DIR, model_path)  # path to the model we just trained
     cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = thr_test  # set a custom testing threshold
     try:
         predictor = DefaultPredictor(cfg)
     except EOFError:
-        logger.info('Skip: model invalid for visualization, consider reduce the ap_thr')
+        logger.info('Skip: model invalid for visualization')
         return
-    val_dataset_dicts = get_indoor_scene_dicts('../data/indoor-scene/val')
+    val_dataset_dicts = get_indoor_scene_dicts(trainval='val')
     if n < 0:
         n = len(val_dataset_dicts)
     for d in random.sample(val_dataset_dicts, n):
@@ -104,7 +104,9 @@ def visualize(model_path='model_final.pth', thr_test=0.2, output_dir='./preds', 
         plt.savefig(f'{output_dir}/{fn[:-4]}-pred.jpg')
 
 
-def evaluate():
+def evaluate(resume=False):
+    if resume:
+        trainer.resume_or_load(resume=True)
     result = trainer.test(cfg, trainer.model, [COCOEvaluator("indoor_scene_val", ("bbox", "segm",),
                                                              False, output_dir=cfg.OUTPUT_DIR + '/eval')])
     return result, result['segm']['AP']
@@ -113,9 +115,9 @@ def evaluate():
 def get_model_cfg(model_name):
     pre = 'COCO-InstanceSegmentation/mask_rcnn_'
     post = '_1x.yaml' if model_name.endswith('_1x') else '_3x.yaml'
-    model_cfg_dict = {'R50': 'R_50_FPN', 'R50C4': 'R_50_C4', 'R50DC5': 'R_50_DC5' , 'R50_1x': 'R_50_FPN',
-                    'R101': 'R_101_FPN', 'R101C4': 'R_101_C4', 'R101DC5': 'R_101_DC5', 
-                    'X101': 'X_101_32x8d_FPN'}
+    model_cfg_dict = {'R50': 'R_50_FPN', 'R50C4': 'R_50_C4', 'R50DC5': 'R_50_DC5', 'R50_1x': 'R_50_FPN',
+                      'R101': 'R_101_FPN', 'R101C4': 'R_101_C4', 'R101DC5': 'R_101_DC5',
+                      'X101': 'X_101_32x8d_FPN'}
 
     return pre + model_cfg_dict[model_name] + post
 
@@ -138,8 +140,8 @@ def get_args():
 
     args_ = parser.parse_args()
 
-    assert args_.iter[-1]=='k'
-    args_.iter = int(float(args_.iter[:-1])*1000)
+    assert args_.iter[-1] == 'k'
+    args_.iter = int(float(args_.iter[:-1]) * 1000)
 
     host_name = socket.gethostname().lower()
     if not args_.cuda:
@@ -154,9 +156,10 @@ def get_args():
     return args_
 
 
-def rename_model_files():
+def eval_rename_models():
     model_final_path = cfg.OUTPUT_DIR + '/model_final.pth'
-    i = f'{round(trainer.iter / 1000, 1)}k' # can use :g format to drop trailing zeros
+    _, ap = evaluate()
+    i = f'{round(trainer.iter / 1000, 1)}k'  # can use :g format to drop trailing zeros
     ap_fns = [(ap, f'{cfg.OUTPUT_DIR}/{model_fullname}-it{i}-ap{ap:.1f}.pth')]
     os.rename(model_final_path, ap_fns[-1][1])
 
@@ -166,18 +169,17 @@ def rename_model_files():
         i = f'{round(int(fn2[:-4]) / 1000, 1)}k'
         logger.info(f'===== Eval {os.path.split(fn)[1]} =====')
         os.rename(fn, model_final_path)
-        trainer.resume_or_load(resume=True)
-        _, ap = evaluate()
-        logger.info('Eval AP: ' + str(ap)) # TODO test in pycharm
+        _, ap = evaluate(resume=True)
+        logger.info('Eval AP: ' + str(ap))
         ap_fns.append((ap, f'{cfg.OUTPUT_DIR}/{model_fullname}-it{i}-ap{ap:.1f}.pth'))
         os.rename(model_final_path, ap_fns[-1][1])
 
-    print(ap_fns)
     # clear models
+    print(ap_fns)
     ap_fns.sort(key=lambda x: x[0])
     for _, fn in ap_fns[:-1]:
         os.remove(fn)
-    
+
     # for resume
     shutil.copy(ap_fns[-1][1], model_final_path)
 
@@ -207,7 +209,7 @@ if __name__ == "__main__":
     cfg.SOLVER.CHECKPOINT_PERIOD = 500
 
     os.makedirs(cfg.OUTPUT_DIR, exist_ok=True)
-    _lr = f'{args.lr * 1000}x' # 1x = 1/1000
+    _lr = f'{args.lr * 1000}x'  # 1x = 1/1000
     _r = '-r' if args.resume else ''
     _s = 's' if args.step < args.iter else ''
     model_fullname = f"{args.name}-bs{args.batch_size:02d}-lr{_s}{_lr}{_r}".replace('e-0', 'e-')
@@ -219,9 +221,8 @@ if __name__ == "__main__":
 
     trainer = Trainer(cfg)
     if args.eval_only:
-        trainer.resume_or_load(resume=True)
-        evaluate()
-        visualize()
+        evaluate(resume=True)
+        visualize_preds()
         exit()
 
     logger.info(f'==================== Start training [{model_fullname}] ====================')
@@ -231,6 +232,5 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         logger.info('==================== KeyboardInterrupt, early stop ====================')
         pass
-    res, ap = evaluate()
-    rename_model_files()
-    visualize()
+    eval_rename_models()
+    visualize_preds()
