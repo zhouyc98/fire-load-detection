@@ -176,12 +176,13 @@ def eval_rename_models():
         os.rename(model_final_path, ap_fns[-1][1])
 
     # clear models
-    print(ap_fns)
     ap_fns.sort(key=lambda x: x[0])
     for _, fn in ap_fns[:-1]:
+        print('Model:', fn, '(removed)')
         os.remove(fn)
 
     # for resume
+    print('Model:', ap_fns[-1][1], '(saved)')
     shutil.copy(ap_fns[-1][1], model_final_path)
 
 
