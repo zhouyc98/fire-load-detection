@@ -17,8 +17,8 @@ from detectron2.utils.visualizer import Visualizer
 from detectron2.data import MetadataCatalog, DatasetCatalog
 
 
-Categories = ['fabric', 'wood', 'plastic', 'metal', 'glass']
-# Category_Ids = {'fabric': 0, 'wood': 1, 'plastic': 2, 'metal': 3, 'glass': 4}
+# Categories = ['fabric', 'wood', 'plastic', 'metal', 'glass']
+Categories = ['fabric', 'wood', 'plastic', 'glass']
 Category_Ids = {c: i for i, c in enumerate(Categories)}
 Id_Categories = {i: c for i, c in enumerate(Categories)}
 
@@ -40,14 +40,16 @@ def get_indoor_scene_dicts(data_dir='../data/indoor-scene/trainval835/', trainva
 
         annotations = []
         for shape in j['shapes']:
+            c = shape['label'][:-2]
+            if c not in Categories:
+                continue
+            category_id = Category_Ids[c]
             # shape['points']: [[x1,y1],...,[xn,yn]]
             seg1 = [x for xy in shape['points'] for x in xy]  # we only have one seg mask for each instance
             xs, ys = zip(*shape['points'])
             bbox = [min(xs), min(ys), max(xs), max(ys)]
             bbox_mode = BoxMode.XYXY_ABS
-            category_id = Category_Ids[shape['label'][:-2]]
-            annotations.append(
-                {'bbox': bbox, 'bbox_mode': bbox_mode, 'category_id': category_id, 'segmentation': [seg1]})
+            annotations.append({'bbox': bbox, 'bbox_mode': bbox_mode, 'category_id': category_id, 'segmentation': [seg1]})
 
         record['annotations'] = annotations
         data_dicts.append(record)
