@@ -1,5 +1,4 @@
 #!/usr/bin/python3.7
-# coding=utf-8
 
 import os, sys, json, cv2, random
 import glob
@@ -17,7 +16,6 @@ from detectron2.structures import BoxMode
 from detectron2.utils.visualizer import Visualizer
 from detectron2.data import MetadataCatalog, DatasetCatalog
 
-# ====================
 
 Categories = ['fabric', 'wood', 'plastic', 'metal', 'glass']
 # Category_Ids = {'fabric': 0, 'wood': 1, 'plastic': 2, 'metal': 3, 'glass': 4}
@@ -70,15 +68,21 @@ def register_dataset():
     return metadata_train, metadata_val
 
 
+def visualize_all():
+    metadata_train, metadata_val = register_dataset()
+    data_dir='../data/indoor-scene/trainval1025/'
+    for trainval in ('val', 'train'):
+        dataset_dicts=get_indoor_scene_dicts(data_dir, trainval)
+        for d in dataset_dicts:
+            img = cv2.imread(d["file_name"]) # it is full path
+            img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+            visualizer = Visualizer(img, metadata=metadata_train)
+            out = visualizer.draw_dataset_dict(d)
+            plt.imshow(out.get_image())
+            vispath=f'{d["file_name"][:-4]}-label.jpg'
+            plt.savefig(vispath)
+            print('visualize saved:', vispath)
+
+
 if __name__ == '__main__':
-    # === verify the data loading
-    register_dataset()
-    metadata_train = MetadataCatalog.get("indoor_scene_train")
-    dataset_dicts = get_indoor_scene_dicts()
-    for i, d in enumerate(random.sample(dataset_dicts, 5)):
-        img = cv2.imread(d["file_name"])
-        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        visualizer = Visualizer(img, metadata=metadata_train)
-        out = visualizer.draw_dataset_dict(d)
-        plt.imshow(out.get_image())
-        plt.savefig(f'{i}.jpg')
+    visualize_all()
