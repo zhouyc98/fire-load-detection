@@ -1,3 +1,4 @@
+#!/usr/bin/python3.7
 # coding=utf-8
 
 import os, sys, json, cv2, random

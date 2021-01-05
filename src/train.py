@@ -1,3 +1,5 @@
+#!/usr/bin/python3.7
+
 import os, sys, json, cv2, random
 from datetime import datetime
 
@@ -54,7 +56,8 @@ class Trainer(DefaultTrainer):
 
         """
         # Here the default print/log frequency of each writer is used.
-        n1 = {'ms7c98-ubuntu': 'S', 'hsh406-ubuntu': 'Z', 'dell-poweredge-t640': 'D'}[socket.gethostname().lower()]
+        n1 = {'ms7c98-ubuntu': 'S', 'hsh406-ubuntu': 'Z', 'dell-poweredge-t640': 'D', 'quincy-ubuntu': 'Y'}[
+            socket.gethostname().lower()]
         dt_now = datetime.now().strftime('%m%d-%H%M')
         with open(cfg.OUTPUT_DIR + '/metrics.json', 'a') as fp:
             fp.write(f'\n# [{dt_now}] {model_fullname} ==========\n')
@@ -178,9 +181,11 @@ def eval_rename_models():
     print(ap_fns)
     ap_fns.sort(key=lambda x: x[0])
     for _, fn in ap_fns[:-1]:
+        print('Model:', fn, '(removed)')
         os.remove(fn)
 
     # for resume
+    print('Model:', ap_fns[-1][1], '(saved)')
     shutil.copy(ap_fns[-1][1], model_final_path)
 
 
