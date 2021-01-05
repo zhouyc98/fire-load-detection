@@ -1,3 +1,5 @@
+#!/bin/sh
+
 echo 'Init & clear tests/'
 mkdir ../tests/ 2> /dev/null
 cp -f ./*.py ../tests/

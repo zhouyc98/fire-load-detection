@@ -1,3 +1,5 @@
+#!/usr/bin/python3.7
+
 import os, sys, json, cv2, random
 from datetime import datetime
 
