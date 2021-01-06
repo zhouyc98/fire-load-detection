@@ -3,12 +3,6 @@
 import os, sys, json, cv2, random
 import glob
 import json
-import re
-import pickle
-import platform
-import socket
-import hashlib
-import logging
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -23,10 +17,19 @@ Category_Ids = {c: i for i, c in enumerate(Categories)}
 Id_Categories = {i: c for i, c in enumerate(Categories)}
 
 
-def get_indoor_scene_dicts(data_dir='../data/indoor-scene/trainval835/', trainval='train'):
-    data_dir += trainval
-    data_dir = os.path.abspath(data_dir)
+def get_indoor_scene_dicts(data_dir='../data/indoor-scene/trainval884/', trainval='train', fold=0):
+    """fold: 0-9"""
     json_paths = glob.glob(f'{data_dir}/*.json')
+    json_paths.sort()
+    n = len(json_paths)
+    i1 = int(n/10) * fold
+    i2 = i1 + int(n/10)
+    if trainval=='val':
+        json_paths=json_paths[i1:i2]
+    elif trainval=='train':
+        del json_paths[i1:i2]
+    else:
+        raise AssertionError("trainval should be 'train' or 'val'")
 
     data_dicts = []
     for idx, json_path in enumerate(json_paths):
@@ -57,11 +60,11 @@ def get_indoor_scene_dicts(data_dir='../data/indoor-scene/trainval835/', trainva
     return data_dicts
 
 
-def register_dataset():
-    DatasetCatalog.register('indoor_scene_train', lambda: get_indoor_scene_dicts(trainval='train'))
+def register_dataset(fold=0):
+    DatasetCatalog.register('indoor_scene_train', lambda: get_indoor_scene_dicts(trainval='train', fold=fold))
     MetadataCatalog.get('indoor_scene_train').thing_classes = Categories
 
-    DatasetCatalog.register('indoor_scene_val', lambda: get_indoor_scene_dicts(trainval='val'))
+    DatasetCatalog.register('indoor_scene_val', lambda: get_indoor_scene_dicts(trainval='val', fold=fold))
     MetadataCatalog.get('indoor_scene_val').thing_classes = Categories
     # MetadataCatalog.get('indoor_scene_val').evaluator_type = 'coco'
 
@@ -70,9 +73,8 @@ def register_dataset():
     return metadata_train, metadata_val
 
 
-def visualize_all():
+def visualize_all(data_dir='../data/indoor-scene/trainval1025/'):
     metadata_train, metadata_val = register_dataset()
-    data_dir='../data/indoor-scene/trainval1025/'
     for trainval in ('val', 'train'):
         dataset_dicts=get_indoor_scene_dicts(data_dir, trainval)
         for d in dataset_dicts:

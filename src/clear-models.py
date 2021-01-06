@@ -13,7 +13,8 @@ def get_args():
 
 if __name__ == "__main__":
     args = get_args()
-    fns=glob.glob(f'./output{args.cuda}/*-ap*.pth')
+    c='' if args.cuda=='0' else args.cuda
+    fns=glob.glob(f'./output{c}/*-ap*.pth')
     n_clean=0
     for fn in fns:
         ap=float(fn.split('-ap')[1][:4])

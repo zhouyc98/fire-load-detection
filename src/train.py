@@ -4,6 +4,8 @@ import os, sys, json, cv2, random
 from datetime import datetime
 
 import argparse
+import socket
+import glob
 import shutil
 import numpy as np
 import matplotlib.pyplot as plt
@@ -79,12 +81,11 @@ class Trainer(DefaultTrainer):
         """
         model = build_model(cfg)
         # logger = logging.getLogger(__name__)
-        # logger.info("Model:\n{}".format(model))
+        # logger.info("Model:\n{}".format(model)) # suppress this too long message
         return model
 
 
-def visualize_preds(model_path='model_final.pth', thr_test=0.2, output_dir='./preds', n=4):
-    os.makedirs(output_dir, exist_ok=True)
+def visualize_preds(model_path='model_final.pth', thr_test=0.2, output_dir='./preds'):
     cfg.MODEL.WEIGHTS = os.path.join(cfg.OUTPUT_DIR, model_path)  # path to the model we just trained
     cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = thr_test  # set a custom testing threshold
     try:
@@ -92,19 +93,57 @@ def visualize_preds(model_path='model_final.pth', thr_test=0.2, output_dir='./pr
     except EOFError:
         logger.info('Skip: model invalid for visualization')
         return
-    val_dataset_dicts = get_indoor_scene_dicts(trainval='val')
-    if n < 0:
-        n = len(val_dataset_dicts)
-    for d in random.sample(val_dataset_dicts, n):
+    
+    val_dataset_dicts = get_indoor_scene_dicts(trainval='val', fold=args.fold)
+    n_sample=4
+    if args.vis_all_preds:
+        n_sample = len(val_dataset_dicts)
+        output_dir += f'/{model_fullname}-ap{ap:.1f}'
+    else:
+        val_dataset_dicts=random.sample(val_dataset_dicts, n_sample)
+    os.makedirs(output_dir, exist_ok=True)
+    for i, d in enumerate(val_dataset_dicts):
         img = cv2.imread(d["file_name"])
         outputs = predictor(img)  # https://detectron2.readthedocs.io/tutorials/models.html#model-output-format
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        v = Visualizer(img, metadata=metadata_val, scale=1.0)  # instance_mode=ColorMode.IMAGE_BW
+        v = Visualizer(img, metadata=metadata_val, scale=2.0)  # instance_mode=ColorMode.IMAGE_BW
         out = v.draw_instance_predictions(outputs["instances"].to("cpu"))
 
         fn = os.path.split(d["file_name"])[1]
         plt.imshow(out.get_image())
         plt.savefig(f'{output_dir}/{fn[:-4]}-pred.jpg')
+        print(f'visualize pred saved ({i+1}/{n_sample}): {output_dir}/{fn[:-4]}-pred.jpg')
+
+
+def eval_rename_models():
+    model_final_path = cfg.OUTPUT_DIR + '/model_final.pth'
+    _, ap = evaluate()
+    i = f'{round(trainer.iter / 1000, 1)}k'  # can use :g format to drop trailing zeros
+    ap_fns = [(ap, f'{cfg.OUTPUT_DIR}/{model_fullname}-it{i}-ap{ap:.1f}.pth')]
+    os.rename(model_final_path, ap_fns[-1][1])
+
+    fns = glob.glob(cfg.OUTPUT_DIR + '/model_0*.pth')
+    for fn in fns:
+        fn1, fn2 = fn.split('_')
+        i = f'{round(int(fn2[:-4]) / 1000, 1)}k'
+        logger.info(f'===== Eval {os.path.split(fn)[1]} =====')
+        os.rename(fn, model_final_path)
+        _, ap = evaluate(resume=True)
+        logger.info('Eval AP: ' + str(ap))
+        ap_fns.append((ap, f'{cfg.OUTPUT_DIR}/{model_fullname}-it{i}-ap{ap:.1f}.pth'))
+        os.rename(model_final_path, ap_fns[-1][1])
+
+    # clear models
+    print(ap_fns)
+    ap_fns.sort(key=lambda x: x[0])
+    for _, fn in ap_fns[:-1]:
+        logger.info(f'Model: {fn} (removed)')
+        os.remove(fn)
+
+    # for resume
+    logger.info(f'Model: {ap_fns[-1][1]} (saved as model_final)')
+    shutil.copy(ap_fns[-1][1], model_final_path)
+    return ap_fns[-1]
 
 
 def evaluate(resume=False):
@@ -137,8 +176,9 @@ def get_args():
     parser.add_argument('-g', '--gamma', type=float, default=0.1, help='lr gamma')
     parser.add_argument('-s', '--step', type=str, default='100k', help='lr decrease step')
     parser.add_argument('--step2', type=str, default='200k', help='lr decrease step2')
+    parser.add_argument('--fold', type=int, default=0, help='dataset fold')
     parser.add_argument('--eval_only', action='store_true', help='eval model and exit')
-    parser.add_argument('--ap_thr', type=float, default=22, help='rm model.pth which has ap lower than the thr')
+    parser.add_argument('--vis_all_preds', action='store_true', help='visualize all preds for val dataset')
     # parser.add_argument('--fp16', type=int, default=1, help="FP16 acceleration, use 0/1 for false/true")
     # Requires pytorch>=1.6 to use native fp 16 acceleration (https://pytorch.org/docs/stable/notes/amp_examples.html)
 
@@ -162,40 +202,10 @@ def get_args():
     return args_
 
 
-def eval_rename_models():
-    model_final_path = cfg.OUTPUT_DIR + '/model_final.pth'
-    _, ap = evaluate()
-    i = f'{round(trainer.iter / 1000, 1)}k'  # can use :g format to drop trailing zeros
-    ap_fns = [(ap, f'{cfg.OUTPUT_DIR}/{model_fullname}-it{i}-ap{ap:.1f}.pth')]
-    os.rename(model_final_path, ap_fns[-1][1])
-
-    fns = glob.glob(cfg.OUTPUT_DIR + '/model_0*.pth')
-    for fn in fns:
-        fn1, fn2 = fn.split('_')
-        i = f'{round(int(fn2[:-4]) / 1000, 1)}k'
-        logger.info(f'===== Eval {os.path.split(fn)[1]} =====')
-        os.rename(fn, model_final_path)
-        _, ap = evaluate(resume=True)
-        logger.info('Eval AP: ' + str(ap))
-        ap_fns.append((ap, f'{cfg.OUTPUT_DIR}/{model_fullname}-it{i}-ap{ap:.1f}.pth'))
-        os.rename(model_final_path, ap_fns[-1][1])
-
-    # clear models
-    # print(ap_fns)
-    ap_fns.sort(key=lambda x: x[0])
-    for _, fn in ap_fns[:-1]:
-        print('Model:', fn, '(removed)')
-        os.remove(fn)
-
-    # for resume
-    print('Model:', ap_fns[-1][1], '(saved as model_final)')
-    shutil.copy(ap_fns[-1][1], model_final_path)
-
-
 if __name__ == "__main__":
     args = get_args()
     os.environ["CUDA_VISIBLE_DEVICES"] = args.cuda
-    metadata_train, metadata_val = register_dataset()
+    metadata_train, metadata_val = register_dataset(fold=args.fold)
     model_cfg = get_model_cfg(args.name)
 
     cfg = get_cfg()
@@ -203,7 +213,7 @@ if __name__ == "__main__":
     cfg.MODEL.WEIGHTS = model_zoo.get_checkpoint_url(model_cfg)
     cfg.DATASETS.TRAIN = ('indoor_scene_train',)
     cfg.DATASETS.TEST = ('indoor_scene_val',)
-    cfg.OUTPUT_DIR = './output' + args.cuda
+    cfg.OUTPUT_DIR = './output' if args.cuda=='0' else './output'+args.cuda
     cfg.SEED = 7
     cfg.MODEL.ROI_HEADS.NUM_CLASSES = 5
     cfg.SOLVER.AMP.ENABLED = True
@@ -217,7 +227,7 @@ if __name__ == "__main__":
     cfg.SOLVER.CHECKPOINT_PERIOD = 500
 
     os.makedirs(cfg.OUTPUT_DIR, exist_ok=True)
-    _lr = f'{args.lr * 1000}x'  # 1x = 1/1000
+    _lr = f'{args.lr * 1000}x'  # lr 1x = 1/1000
     _r = '-r' if args.resume else ''
     _s = 's' if args.step < args.iter else ''
     model_fullname = f"{args.name}-bs{args.batch_size:02d}-lr{_s}{_lr}{_r}".replace('e-0', 'e-')
@@ -229,7 +239,7 @@ if __name__ == "__main__":
 
     trainer = Trainer(cfg)
     if args.eval_only:
-        evaluate(resume=True)
+        result, ap = evaluate(resume=True)
         visualize_preds()
         exit()
 
@@ -240,5 +250,5 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         logger.info('==================== KeyboardInterrupt, early stop ====================')
         pass
-    eval_rename_models()
+    ap, fn = eval_rename_models()
     visualize_preds()
