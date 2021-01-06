@@ -135,7 +135,8 @@ def get_args():
     parser.add_argument('-c', '--cuda', type=str, default='', help='cuda visible device id')
     parser.add_argument('-r', '--resume', action='store_true', help='resume training')
     parser.add_argument('-g', '--gamma', type=float, default=0.1, help='lr gamma')
-    parser.add_argument('-s', '--step', type=int, default=100000, help='lr decrease step')
+    parser.add_argument('-s', '--step', type=str, default='100k', help='lr decrease step')
+    parser.add_argument('--step2', type=str, default='200k', help='lr decrease step2')
     parser.add_argument('--eval_only', action='store_true', help='eval model and exit')
     parser.add_argument('--ap_thr', type=float, default=22, help='rm model.pth which has ap lower than the thr')
     # parser.add_argument('--fp16', type=int, default=1, help="FP16 acceleration, use 0/1 for false/true")
@@ -143,8 +144,10 @@ def get_args():
 
     args_ = parser.parse_args()
 
-    assert args_.iter[-1] == 'k'
+    assert args_.iter[-1] == 'k' and args_.step[-1] == 'k' and args_.step2[-1] == 'k'
     args_.iter = int(float(args_.iter[:-1]) * 1000)
+    args_.step = int(float(args_.step[:-1]) * 1000)
+    args_.step2 = int(float(args_.step2[:-1]) * 1000)
 
     host_name = socket.gethostname().lower()
     if not args_.cuda:
@@ -209,7 +212,7 @@ if __name__ == "__main__":
     cfg.TEST.EVAL_PERIOD = 250
     cfg.SOLVER.BASE_LR = args.lr
     cfg.SOLVER.GAMMA = args.gamma
-    cfg.SOLVER.STEPS = (args.step,)
+    cfg.SOLVER.STEPS = (args.step, args.step2)
     cfg.SOLVER.WARMUP_ITERS = 100
     cfg.SOLVER.CHECKPOINT_PERIOD = 500
 
