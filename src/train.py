@@ -112,7 +112,7 @@ def visualize_preds(model_path='model_final.pth', thr_test=0.2, output_dir='./pr
         fn = os.path.split(d["file_name"])[1]
         plt.imshow(out.get_image())
         plt.savefig(f'{output_dir}/{fn[:-4]}-pred.jpg')
-        print(f'visualize pred saved ({i+1}/{n_sample}): {output_dir}/{fn[:-4]}-pred.jpg')
+        logger.info(f'visualize pred saved ({i+1}/{n_sample}): {output_dir}/{fn[:-4]}-pred.jpg')
 
 
 def eval_rename_models():
@@ -129,12 +129,12 @@ def eval_rename_models():
         logger.info(f'===== Eval {os.path.split(fn)[1]} =====')
         os.rename(fn, model_final_path)
         _, ap = evaluate(resume=True)
-        logger.info('Eval AP: ' + str(ap))
+        logger.info('===== Eval AP: ' + str(ap))
         ap_fns.append((ap, f'{cfg.OUTPUT_DIR}/{model_fullname}-it{i}-ap{ap:.1f}.pth'))
         os.rename(model_final_path, ap_fns[-1][1])
 
     # clear models
-    print(ap_fns)
+    # print(ap_fns)
     ap_fns.sort(key=lambda x: x[0])
     for _, fn in ap_fns[:-1]:
         logger.info(f'Model: {fn} (removed)')
@@ -175,8 +175,8 @@ def get_args():
     parser.add_argument('-r', '--resume', action='store_true', help='resume training')
     parser.add_argument('-g', '--gamma', type=float, default=0.1, help='lr gamma')
     parser.add_argument('-s', '--step', type=str, default='100k', help='lr decrease step')
+    parser.add_argument('-f', '--fold', type=int, default=0, help='dataset fold')
     parser.add_argument('--step2', type=str, default='200k', help='lr decrease step2')
-    parser.add_argument('--fold', type=int, default=0, help='dataset fold')
     parser.add_argument('--eval_only', action='store_true', help='eval model and exit')
     parser.add_argument('--vis_all_preds', action='store_true', help='visualize all preds for val dataset')
     # parser.add_argument('--fp16', type=int, default=1, help="FP16 acceleration, use 0/1 for false/true")
@@ -230,7 +230,7 @@ if __name__ == "__main__":
     _lr = f'{args.lr * 1000}x'  # lr 1x = 1/1000
     _r = '-r' if args.resume else ''
     _s = 's' if args.step < args.iter else ''
-    model_fullname = f"{args.name}-bs{args.batch_size:02d}-lr{_s}{_lr}{_r}".replace('e-0', 'e-')
+    model_fullname = f"{args.name}-bs{args.batch_size:02d}-lr{_s}{_lr}{_r}-f{args.fold}".replace('e-0', 'e-')
     logger = setup_logger(cfg.OUTPUT_DIR + '/log.log')
     logger.info('#' * 100 + '\n')
     logger.info('Args: ' + str(args))

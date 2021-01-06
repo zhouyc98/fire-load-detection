@@ -18,12 +18,14 @@ Id_Categories = {i: c for i, c in enumerate(Categories)}
 
 
 def get_indoor_scene_dicts(data_dir='../data/indoor-scene/trainval884/', trainval='train', fold=0):
-    """fold: 0-9"""
+    """fold: 0-4"""
     json_paths = glob.glob(f'{data_dir}/*.json')
     json_paths.sort()
+    
     n = len(json_paths)
-    i1 = int(n/10) * fold
-    i2 = i1 + int(n/10)
+    n_fold = int(n/5)
+    i1 = n_fold * fold
+    i2 = i1 + n_fold
     if trainval=='val':
         json_paths=json_paths[i1:i2]
     elif trainval=='train':
