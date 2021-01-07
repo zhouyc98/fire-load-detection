@@ -2,6 +2,7 @@
 
 import os, sys, json, cv2, random
 from datetime import datetime
+from pprint import pprint
 
 import argparse
 import socket
@@ -27,11 +28,8 @@ from data import get_indoor_scene_dicts, register_dataset
 
 
 class Trainer(DefaultTrainer):
-
     def __init__(self, cfg):
         super().__init__(cfg)
-        # self.start_iter = 1
-        self.max_iter -= 1  # avoid eval twice in the last
 
     @classmethod
     def build_evaluator(cls, cfg, dataset_name, output_folder=None):
@@ -119,8 +117,8 @@ def eval_rename_models():
     model_final_path = cfg.OUTPUT_DIR + '/model_final.pth'
     _, ap = evaluate()
     i = f'{round(trainer.iter / 1000, 1)}k'  # can use :g format to drop trailing zeros
-    ap_fns = [(ap, f'{cfg.OUTPUT_DIR}/{model_fullname}-it{i}-ap{ap:.1f}.pth')]
-    os.rename(model_final_path, ap_fns[-1][1])
+    ap_i_fns = [(ap, i, f'{cfg.OUTPUT_DIR}/{model_fullname}-it{i}-ap{ap:.1f}.pth')]
+    os.rename(model_final_path, ap_i_fns[-1][2])
 
     fns = glob.glob(cfg.OUTPUT_DIR + '/model_0*.pth')
     for fn in fns:
@@ -130,20 +128,23 @@ def eval_rename_models():
         os.rename(fn, model_final_path)
         _, ap = evaluate(resume=True)
         logger.info('===== Eval AP: ' + str(ap))
-        ap_fns.append((ap, f'{cfg.OUTPUT_DIR}/{model_fullname}-it{i}-ap{ap:.1f}.pth'))
-        os.rename(model_final_path, ap_fns[-1][1])
-
-    # clear models
-    # print(ap_fns)
-    ap_fns.sort(key=lambda x: x[0])
-    for _, fn in ap_fns[:-1]:
-        logger.info(f'Model: {fn} (removed)')
-        os.remove(fn)
-
+        ap_i_fns.append((ap, i, f'{cfg.OUTPUT_DIR}/{model_fullname}-it{i}-ap{ap:.1f}.pth'))
+        os.rename(model_final_path, ap_i_fns[-1][2])
+    
+    pprint(ap_i_fns)
     # for resume
-    logger.info(f'Model: {ap_fns[-1][1]} (saved as model_final)')
-    shutil.copy(ap_fns[-1][1], model_final_path)
-    return ap_fns[-1]
+    ap_max, _, fn_max=max(ap_i_fns)
+    shutil.copy(fn_max, model_final_path)
+    logger.info(f'Model {fn_max} is saved as model_final.pth')
+    
+    # clear models in .5 iter, except the best model
+    ap_i_fns.sort()
+    for _, fn in ap_i_fns[:-1]:
+        if i.endswith('.5k'):
+            # logger.info(f'Model: {fn} (removed)')
+            os.remove(fn)
+
+    return ap_max, fn_max
 
 
 def evaluate(resume=False):
@@ -167,7 +168,7 @@ def get_model_cfg(model_name):
 def get_args():
     parser = argparse.ArgumentParser(description='Indoor Fire Load Detection')
 
-    parser.add_argument('-n', '--name', type=str, default='R101', help='model name')
+    parser.add_argument('-n', '--name', type=str, default='R50', help='model name')
     parser.add_argument('-i', '--iter', type=str, default='1k', help='num of training iterations, k=*1000')
     parser.add_argument('-b', '--batch_size', type=int, default=4, help='batch size')
     parser.add_argument('-l', '--lr', type=float, default=1e-3, help='learning rate')
@@ -227,11 +228,11 @@ if __name__ == "__main__":
     cfg.SOLVER.CHECKPOINT_PERIOD = 500
 
     os.makedirs(cfg.OUTPUT_DIR, exist_ok=True)
-    shutil.rmtree(cfg.OUTPUT_DIR+'/eval', ignore_errors=True)
+    shutil.rmtree(cfg.OUTPUT_DIR+'/eval', ignore_errors=True) # remove cache
     _lr = f'{args.lr * 1000}x'  # lr 1x = 1/1000
     _r = '-r' if args.resume else ''
     _s = 's' if args.step < args.iter else ''
-    model_fullname = f"{args.name}-bs{args.batch_size:02d}-lr{_s}{_lr}{_r}-f{args.fold}".replace('e-0', 'e-')
+    model_fullname = f"{args.name}-f{args.fold}-bs{args.batch_size:02d}-lr{_s}{_lr}{_r}".replace('e-0', 'e-')
     logger = setup_logger(cfg.OUTPUT_DIR + '/log.log')
     logger.info('#' * 100 + '\n')
     logger.info('Args: ' + str(args))
@@ -243,9 +244,11 @@ if __name__ == "__main__":
         result, ap = evaluate(resume=True)
         visualize_preds()
         exit()
-
-    logger.info(f'==================== Start training [{model_fullname}] ====================')
     trainer.resume_or_load(resume=args.resume)
+    if args.resume:
+        trainer.max_iter += args.iter
+    
+    logger.info(f'==================== Start training [{model_fullname}] ====================')
     try:
         trainer.train()
     except KeyboardInterrupt:

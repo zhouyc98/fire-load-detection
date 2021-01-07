@@ -22,10 +22,11 @@ def get_indoor_scene_dicts(data_dir='../data/indoor-scene/trainval884/', trainva
     json_paths = glob.glob(f'{data_dir}/*.json')
     json_paths.sort()
     
+    k_fold = 5
     n = len(json_paths)
-    n_fold = int(n/5)
-    i1 = n_fold * fold
-    i2 = i1 + n_fold
+    n1 = int(n/k_fold)
+    i1 = n1 * fold
+    i2 = i1 + n1 if fold < (k_fold-1) else n
     if trainval=='val':
         json_paths=json_paths[i1:i2]
     elif trainval=='train':
@@ -90,5 +91,22 @@ def visualize_all(data_dir='../data/indoor-scene/trainval1025/'):
             print('visualize saved:', vispath)
 
 
+def _test():
+    metadata_train, metadata_val = register_dataset()
+    for fold in range(5):
+        train_dataset_dicts=get_indoor_scene_dicts(trainval='train',fold=fold)
+        val_dataset_dicts=get_indoor_scene_dicts(trainval='val',fold=fold)
+        print(f'fold={fold}, n_train={len(train_dataset_dicts)}, n_val={len(val_dataset_dicts)}')
+    
+    # === result
+    # fold=0, n_train=708, n_val=176
+    # fold=1, n_train=708, n_val=176
+    # fold=2, n_train=708, n_val=176
+    # fold=3, n_train=708, n_val=176
+    # fold=4, n_train=704, n_val=180
+
+
 if __name__ == '__main__':
-    visualize_all()
+    # _test()
+    # visualize_all()
+    pass
