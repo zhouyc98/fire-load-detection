@@ -19,11 +19,11 @@ from detectron2.evaluation import COCOEvaluator, inference_on_dataset
 from detectron2.utils.logger import setup_logger
 from detectron2.utils.events import CommonMetricPrinter, JSONWriter, TensorboardXWriter
 from detectron2.checkpoint import DetectionCheckpointer
-from detectron2.utils.visualizer import ColorMode
+from detectron2.utils.visualizer import Visualizer, ColorMode
 from detectron2.data import build_detection_test_loader
 from detectron2.modeling import build_model
 
-from data import *
+from data import get_indoor_scene_dicts, register_dataset
 
 
 class Trainer(DefaultTrainer):
@@ -227,6 +227,7 @@ if __name__ == "__main__":
     cfg.SOLVER.CHECKPOINT_PERIOD = 500
 
     os.makedirs(cfg.OUTPUT_DIR, exist_ok=True)
+    shutil.rmtree(cfg.OUTPUT_DIR+'/eval', ignore_errors=True)
     _lr = f'{args.lr * 1000}x'  # lr 1x = 1/1000
     _r = '-r' if args.resume else ''
     _s = 's' if args.step < args.iter else ''
