@@ -131,18 +131,22 @@ def eval_rename_models():
         ap_i_fns.append((ap, i, f'{cfg.OUTPUT_DIR}/{model_fullname}-it{i}-ap{ap:.1f}.pth'))
         os.rename(model_final_path, ap_i_fns[-1][2])
     
-    pprint(ap_i_fns)
+    logger.info('===== All trained models =====\n'+'\n'.join([str(x) for x in ap_i_fns]))
+
     # for resume
     ap_max, _, fn_max=max(ap_i_fns)
     shutil.copy(fn_max, model_final_path)
     logger.info(f'Model {fn_max} is saved as model_final.pth')
     
-    # clear models in .5 iter, except the best model
-    ap_i_fns.sort()
-    for _, fn in ap_i_fns[:-1]:
-        if i.endswith('.5k'):
-            # logger.info(f'Model: {fn} (removed)')
-            os.remove(fn)
+    # clear models
+    if args.save < 3:
+        ap_i_fns.sort()
+        for _, i, fn in ap_i_fns[:-1]:
+            if args.save == 2:
+                if i.endswith('.5k'):
+                    os.remove(fn)
+            else:
+                os.remove(fn)
 
     return ap_max, fn_max
 
@@ -178,6 +182,8 @@ def get_args():
     parser.add_argument('-s', '--step', type=str, default='100k', help='lr decrease step')
     parser.add_argument('-f', '--fold', type=int, default=0, help='dataset fold')
     parser.add_argument('--step2', type=str, default='200k', help='lr decrease step2')
+    parser.add_argument('--step3', type=str, default='300k', help='lr decrease step3')
+    parser.add_argument('--save', type=int, default=2, help='save model file strategy, 1=best only, 2=auto, 3=all')
     parser.add_argument('--eval_only', action='store_true', help='eval model and exit')
     parser.add_argument('--vis_all_preds', action='store_true', help='visualize all preds for val dataset')
     # parser.add_argument('--fp16', type=int, default=1, help="FP16 acceleration, use 0/1 for false/true")
@@ -189,6 +195,7 @@ def get_args():
     args_.iter = int(float(args_.iter[:-1]) * 1000)
     args_.step = int(float(args_.step[:-1]) * 1000)
     args_.step2 = int(float(args_.step2[:-1]) * 1000)
+    args_.step3 = int(float(args_.step3[:-1]) * 1000)
 
     host_name = socket.gethostname().lower()
     if not args_.cuda:
@@ -223,7 +230,7 @@ if __name__ == "__main__":
     cfg.TEST.EVAL_PERIOD = 250
     cfg.SOLVER.BASE_LR = args.lr
     cfg.SOLVER.GAMMA = args.gamma
-    cfg.SOLVER.STEPS = (args.step, args.step2)
+    cfg.SOLVER.STEPS = (args.step, args.step2, args.step3)
     cfg.SOLVER.WARMUP_ITERS = 100
     cfg.SOLVER.CHECKPOINT_PERIOD = 500
 
