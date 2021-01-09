@@ -56,7 +56,7 @@ class Trainer(DefaultTrainer):
 
         """
         # Here the default print/log frequency of each writer is used.
-        n1 = {'ms7c98-ubuntu': 'S', 'hsh406-ubuntu': 'Z', 'dell-poweredge-t640': 'D', 'quincy-ubuntu': 'Y'}[
+        n1 = {'ms7c98-ubuntu': 'S', 'hsh406-zyc-ubuntu': 'Z', 'dell-poweredge-t640': 'D', 'quincy-ubuntu': 'Y'}[
             socket.gethostname().lower()]
         dt_now = datetime.now().strftime('%m%d-%H%M')
         with open(cfg.OUTPUT_DIR + '/metrics.json', 'a') as fp:
@@ -83,9 +83,9 @@ class Trainer(DefaultTrainer):
         return model
 
 
-def visualize_preds(model_path='model_final.pth', thr_test=0.2, output_dir='./preds'):
+def visualize_preds(model_path='model_final.pth', output_dir='./preds'):
     cfg.MODEL.WEIGHTS = os.path.join(cfg.OUTPUT_DIR, model_path)  # path to the model we just trained
-    cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = thr_test  # set a custom testing threshold
+    cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = args.thr_test  # set a custom testing threshold
     try:
         predictor = DefaultPredictor(cfg)
     except EOFError:
@@ -96,7 +96,7 @@ def visualize_preds(model_path='model_final.pth', thr_test=0.2, output_dir='./pr
     n_sample=4
     if args.vis_all_preds:
         n_sample = len(val_dataset_dicts)
-        output_dir += f'/{model_fullname}-ap{ap:.1f}'
+        output_dir += f'/{model_fullname}-ap{ap:.1f}-thr{args.thr_test}'
     else:
         val_dataset_dicts=random.sample(val_dataset_dicts, n_sample)
     os.makedirs(output_dir, exist_ok=True)
@@ -104,7 +104,7 @@ def visualize_preds(model_path='model_final.pth', thr_test=0.2, output_dir='./pr
         img = cv2.imread(d["file_name"])
         outputs = predictor(img)  # https://detectron2.readthedocs.io/tutorials/models.html#model-output-format
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        v = Visualizer(img, metadata=metadata_val, scale=2.0)  # instance_mode=ColorMode.IMAGE_BW
+        v = Visualizer(img, metadata=metadata_val, scale=1.0)  # instance_mode=ColorMode.IMAGE_BW
         out = v.draw_instance_predictions(outputs["instances"].to("cpu"))
 
         fn = os.path.split(d["file_name"])[1]
@@ -131,23 +131,22 @@ def eval_rename_models():
         ap_i_fns.append((ap, i, f'{cfg.OUTPUT_DIR}/{model_fullname}-it{i}-ap{ap:.1f}.pth'))
         os.rename(model_final_path, ap_i_fns[-1][2])
     
+    ap_i_fns.sort(key=lambda x: x[1])
+    if ap_i_fns[-1]==ap_i_fns[-2]:
+        del ap_i_fns[-1]
     logger.info('===== All trained models =====\n'+'\n'.join([str(x) for x in ap_i_fns]))
 
-    # for resume
-    ap_max, _, fn_max=max(ap_i_fns)
+    # save best, for resume
+    ap_i_fns.sort()
+    ap_max, _, fn_max=ap_i_fns[-1]
     shutil.copy(fn_max, model_final_path)
     logger.info(f'Model {fn_max} is saved as model_final.pth')
     
     # clear models
-    if args.save < 3:
-        ap_i_fns.sort()
+    if args.save == 1:
         for _, i, fn in ap_i_fns[:-1]:
-            if args.save == 2:
-                if i.endswith('.5k'):
-                    os.remove(fn)
-            else:
-                os.remove(fn)
-
+            os.remove(fn)
+    
     return ap_max, fn_max
 
 
@@ -179,11 +178,12 @@ def get_args():
     parser.add_argument('-c', '--cuda', type=str, default='', help='cuda visible device id')
     parser.add_argument('-r', '--resume', action='store_true', help='resume training')
     parser.add_argument('-g', '--gamma', type=float, default=0.1, help='lr gamma')
-    parser.add_argument('-s', '--step', type=str, default='100k', help='lr decrease step')
     parser.add_argument('-f', '--fold', type=int, default=0, help='dataset fold')
+    parser.add_argument('-s', '--step', type=str, default='100k', help='lr decrease step')
     parser.add_argument('--step2', type=str, default='200k', help='lr decrease step2')
     parser.add_argument('--step3', type=str, default='300k', help='lr decrease step3')
-    parser.add_argument('--save', type=int, default=2, help='save model file strategy, 1=best only, 2=auto, 3=all')
+    parser.add_argument('--save', type=int, default=1, help='save model file strategy, 1=best only, 2=all')
+    parser.add_argument('--thr_test', type=float, default=0.3, help='MODEL.ROI_HEADS.SCORE_THRESH_TEST')
     parser.add_argument('--eval_only', action='store_true', help='eval model and exit')
     parser.add_argument('--vis_all_preds', action='store_true', help='visualize all preds for val dataset')
     # parser.add_argument('--fp16', type=int, default=1, help="FP16 acceleration, use 0/1 for false/true")
@@ -201,9 +201,9 @@ def get_args():
     if not args_.cuda:
         args_.cuda = '1' if host_name == 'dell-poweredge-t640' else '0'
     # if args_.batch_size < 0:
-    #     bs_dict = {'R50': {'hsh406-ubuntu': 10, 'ms7c98-ubuntu': 40, 'dell-poweredge-t640': 12},
-    #                'R101': {'hsh406-ubuntu': 5, 'ms7c98-ubuntu': 30, 'dell-poweredge-t640': 10},
-    #                'X101': {'hsh406-ubuntu': 4, 'ms7c98-ubuntu': 20, 'dell-poweredge-t640': 6}}
+    #     bs_dict = {'R50': {'hsh406-zyc-ubuntu': 10, 'ms7c98-ubuntu': 40, 'dell-poweredge-t640': 12},
+    #                'R101': {'hsh406-zyc-ubuntu': 5, 'ms7c98-ubuntu': 30, 'dell-poweredge-t640': 10},
+    #                'X101': {'hsh406-zyc-ubuntu': 4, 'ms7c98-ubuntu': 20, 'dell-poweredge-t640': 6}}
     #     name1 = args_.name[:3] if args_.name[:3]=='R50' else args_.name[:4]
     #     args_.batch_size = bs_dict[name1][host_name]
 

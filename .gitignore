@@ -10,6 +10,7 @@ vis/
 runs/
 models/
 output*/
+output
 
 run.sh
 run*.sh
