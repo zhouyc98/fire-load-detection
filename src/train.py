@@ -85,7 +85,7 @@ class Trainer(DefaultTrainer):
 
 def visualize_preds(model_path='model_final.pth', output_dir='./preds'):
     cfg.MODEL.WEIGHTS = os.path.join(cfg.OUTPUT_DIR, model_path)  # path to the model we just trained
-    cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = args.thr_test  # set a custom testing threshold
+    cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = 0.3  # set a custom testing threshold
     try:
         predictor = DefaultPredictor(cfg)
     except EOFError:
@@ -96,7 +96,7 @@ def visualize_preds(model_path='model_final.pth', output_dir='./preds'):
     n_sample=4
     if args.vis_all_preds:
         n_sample = len(val_dataset_dicts)
-        output_dir += f'/{model_fullname}-ap{ap:.1f}-thr{args.thr_test}'
+        output_dir += f'/{model_fullname}-ap{ap:.1f}'
     else:
         val_dataset_dicts=random.sample(val_dataset_dicts, n_sample)
     os.makedirs(output_dir, exist_ok=True)
@@ -115,6 +115,9 @@ def visualize_preds(model_path='model_final.pth', output_dir='./preds'):
 
 def eval_rename_models():
     model_final_path = cfg.OUTPUT_DIR + '/model_final.pth'
+    with open(cfg.OUTPUT_DIR + '/last_checkpoint','w') as fp:
+        fp.write('model_final.pth')
+    
     _, ap = evaluate()
     i = f'{round(trainer.iter / 1000, 1)}k'  # can use :g format to drop trailing zeros
     ap_i_fns = [(ap, i, f'{cfg.OUTPUT_DIR}/{model_fullname}-it{i}-ap{ap:.1f}.pth')]
@@ -127,11 +130,11 @@ def eval_rename_models():
         logger.info(f'===== Eval {os.path.split(fn)[1]} =====')
         os.rename(fn, model_final_path)
         _, ap = evaluate(resume=True)
-        logger.info('===== Eval AP: ' + str(ap))
+        logger.info('Eval AP: ' + str(ap))
         ap_i_fns.append((ap, i, f'{cfg.OUTPUT_DIR}/{model_fullname}-it{i}-ap{ap:.1f}.pth'))
         os.rename(model_final_path, ap_i_fns[-1][2])
     
-    ap_i_fns.sort(key=lambda x: x[1])
+    ap_i_fns.sort(key=lambda x: float(x[1][:-1])) # x[1]: 'x.xk'
     if ap_i_fns[-1]==ap_i_fns[-2]:
         del ap_i_fns[-1]
     logger.info('===== All trained models =====\n'+'\n'.join([str(x) for x in ap_i_fns]))
@@ -144,6 +147,7 @@ def eval_rename_models():
     
     # clear models
     if args.save == 1:
+        logger.info('clear models...')
         for _, i, fn in ap_i_fns[:-1]:
             os.remove(fn)
     
@@ -183,15 +187,16 @@ def get_args():
     parser.add_argument('--step2', type=str, default='200k', help='lr decrease step2')
     parser.add_argument('--step3', type=str, default='300k', help='lr decrease step3')
     parser.add_argument('--save', type=int, default=1, help='save model file strategy, 1=best only, 2=all')
-    parser.add_argument('--thr_test', type=float, default=0.3, help='MODEL.ROI_HEADS.SCORE_THRESH_TEST')
     parser.add_argument('--eval_only', action='store_true', help='eval model and exit')
     parser.add_argument('--vis_all_preds', action='store_true', help='visualize all preds for val dataset')
-    # parser.add_argument('--fp16', type=int, default=1, help="FP16 acceleration, use 0/1 for false/true")
+    parser.add_argument('--fp16', type=int, default=1, help="FP16 acceleration, use 0/1 for false/true")
     # Requires pytorch>=1.6 to use native fp 16 acceleration (https://pytorch.org/docs/stable/notes/amp_examples.html)
 
     args_ = parser.parse_args()
 
-    assert args_.iter[-1] == 'k' and args_.step[-1] == 'k' and args_.step2[-1] == 'k'
+    args_.fp16 = bool(args_.fp16)
+
+    assert args_.iter[-1] == 'k' and args_.step[-1] == 'k' and args_.step2[-1] == 'k' and args_.step3[-1] == 'k'
     args_.iter = int(float(args_.iter[:-1]) * 1000)
     args_.step = int(float(args_.step[:-1]) * 1000)
     args_.step2 = int(float(args_.step2[:-1]) * 1000)
@@ -224,7 +229,7 @@ if __name__ == "__main__":
     cfg.OUTPUT_DIR = './output' if args.cuda=='0' else './output'+args.cuda
     cfg.SEED = 7
     cfg.MODEL.ROI_HEADS.NUM_CLASSES = 5
-    cfg.SOLVER.AMP.ENABLED = True
+    cfg.SOLVER.AMP.ENABLED = args.fp16
     cfg.SOLVER.MAX_ITER = args.iter  # epochs = batch_size * iter / n_images
     cfg.SOLVER.IMS_PER_BATCH = args.batch_size  # global batch_size
     cfg.TEST.EVAL_PERIOD = 250
@@ -253,6 +258,7 @@ if __name__ == "__main__":
         exit()
     trainer.resume_or_load(resume=args.resume)
     if args.resume:
+        # if resume, the lr and optimizer will also be resumed
         trainer.max_iter += args.iter
     
     logger.info(f'==================== Start training [{model_fullname}] ====================')
