@@ -163,6 +163,9 @@ def evaluate(resume=False):
 
 
 def get_model_cfg(model_name):
+    if model_name=='X152':
+        return  'Misc/cascade_mask_rcnn_X_152_32x8d_FPN_IN5k_gn_dconv.yaml'
+
     pre = 'COCO-InstanceSegmentation/mask_rcnn_'
     post = '_1x.yaml' if model_name.endswith('_1x') else '_3x.yaml'
     model_cfg_dict = {'R50': 'R_50_FPN', 'R50C4': 'R_50_C4', 'R50DC5': 'R_50_DC5', 'R50_1x': 'R_50_FPN',
