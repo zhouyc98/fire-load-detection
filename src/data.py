@@ -17,7 +17,7 @@ Category_Ids = {c: i for i, c in enumerate(Categories)}
 Id_Categories = {i: c for i, c in enumerate(Categories)}
 
 
-def get_indoor_scene_dicts(data_dir='../data/indoor-scene/trainval884/', trainval='train', fold=0):
+def get_indoor_scene_dicts(data_dir='../data/indoor-scene/trainval868/', trainval='train', fold=0):
     """fold: 0-4"""
     json_paths = glob.glob(f'{data_dir}/*.json')
     json_paths.sort()
@@ -76,7 +76,7 @@ def register_dataset(fold=0):
     return metadata_train, metadata_val
 
 
-def visualize_all(data_dir='../data/indoor-scene/trainval1025/'):
+def visualize_all(data_dir='../data/indoor-scene/trainval868/'):
     metadata_train, metadata_val = register_dataset()
     for trainval in ('val', 'train'):
         dataset_dicts=get_indoor_scene_dicts(data_dir, trainval)
@@ -108,5 +108,5 @@ def _test():
 
 if __name__ == '__main__':
     # _test()
-    # visualize_all()
+    visualize_all()
     pass
