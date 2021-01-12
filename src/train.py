@@ -261,8 +261,9 @@ if __name__ == "__main__":
         exit()
     trainer.resume_or_load(resume=args.resume)
     if args.resume:
-        # if resume, the lr and optimizer will also be resumed
-        trainer.max_iter += args.iter
+        # lr and optimizer will also be resumed, change lr by using steps
+        trainer.max_iter = args.iter # + trainer.start_iter
+        trainer.scheduler.milestones = cfg.SOLVER.STEPS
     
     logger.info(f'==================== Start training [{model_fullname}] ====================')
     try:
