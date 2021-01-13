@@ -185,7 +185,7 @@ def get_args():
     parser.add_argument('-c', '--cuda', type=str, default='', help='cuda visible device id')
     parser.add_argument('-r', '--resume', action='store_true', help='resume training')
     parser.add_argument('-g', '--gamma', type=float, default=0.1, help='lr gamma')
-    parser.add_argument('-f', '--fold', type=int, default=0, help='dataset fold')
+    parser.add_argument('-f', '--fold', type=int, default=2, help='dataset fold')
     parser.add_argument('-s', '--step', type=str, default='100k', help='lr decrease step')
     parser.add_argument('--step2', type=str, default='200k', help='lr decrease step2')
     parser.add_argument('--step3', type=str, default='300k', help='lr decrease step3')
@@ -241,6 +241,7 @@ if __name__ == "__main__":
     cfg.SOLVER.STEPS = (args.step, args.step2, args.step3)
     cfg.SOLVER.WARMUP_ITERS = 100
     cfg.SOLVER.CHECKPOINT_PERIOD = 500
+    cfg.MODEL.ANCHOR_GENERATOR.ASPECT_RATIOS = [[0.33, 1.0, 3.0]] # slightly better than default
 
     os.makedirs(cfg.OUTPUT_DIR, exist_ok=True)
     shutil.rmtree(cfg.OUTPUT_DIR+'/eval', ignore_errors=True) # remove cache
