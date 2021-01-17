@@ -17,6 +17,7 @@ run*.sh
 *.xlsx
 *.pt
 *.pth
+*.pkl
 *.lnk
 
 
