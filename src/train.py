@@ -1,10 +1,12 @@
 #!/usr/bin/python3.7
 
-import os, sys, json, cv2, random
+import os, sys, json, random
+import pickle
 from datetime import datetime
 from pprint import pprint
 
 import argparse
+import cv2
 import socket
 import glob
 import shutil
@@ -22,7 +24,8 @@ from detectron2.utils.events import CommonMetricPrinter, JSONWriter, Tensorboard
 from detectron2.checkpoint import DetectionCheckpointer
 from detectron2.utils.visualizer import Visualizer, ColorMode
 from detectron2.data import build_detection_test_loader
-from detectron2.modeling import build_model
+from detectron2.modeling import build_model, GeneralizedRCNNWithTTA
+from torch.nn.parallel import distributed
 
 from data import get_indoor_scene_dicts, register_dataset
 
@@ -56,16 +59,16 @@ class Trainer(DefaultTrainer):
 
         """
         # Here the default print/log frequency of each writer is used.
-        n1 = {'ms7c98-ubuntu': 'S', 'hsh406-zyc-ubuntu': 'Z', 'dell-poweredge-t640': 'D', 'quincy-ubuntu': 'Y'}[
-            socket.gethostname().lower()]
+        # n1 = {'ms7c98-ubuntu': 'S', 'hsh406-zyc-ubuntu': 'Z', 'dell-poweredge-t640': 'D', 'quincy-ubuntu': 'Y'}[
+        #     socket.gethostname().lower()]
         dt_now = datetime.now().strftime('%m%d-%H%M')
-        with open(cfg.OUTPUT_DIR + '/metrics.json', 'a') as fp:
+        with open(f'{cfg.OUTPUT_DIR}/metrics.json', 'a') as fp:
             fp.write(f'\n# [{dt_now}] {model_fullname} ==========\n')
         return [
             # It may not always print what you want to see, since it prints "common" metrics only.
             CommonMetricPrinter(self.max_iter),
             JSONWriter(os.path.join(self.cfg.OUTPUT_DIR, "metrics.json")),
-            TensorboardXWriter(f"runs/{n1} {dt_now} {model_fullname}"),
+            TensorboardXWriter(f"./output/runs/{dt_now} {model_fullname}"),
         ]
 
     @classmethod
@@ -83,7 +86,7 @@ class Trainer(DefaultTrainer):
         return model
 
 
-def visualize_preds(model_path='model_final.pth', output_dir='./preds'):
+def visualize_preds(model_path='model_final.pth', output_dir='./output/preds'):
     cfg.MODEL.WEIGHTS = os.path.join(cfg.OUTPUT_DIR, model_path)  # path to the model we just trained
     cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = 0.3  # set a custom testing threshold
     try:
@@ -146,7 +149,7 @@ def eval_rename_models():
     logger.info(f'Model {fn_max} is saved as model_final.pth')
     
     # clear models
-    if args.save == 1:
+    if not args.save_all:
         logger.info('clear models...')
         for _, i, fn in ap_i_fns[:-1]:
             os.remove(fn)
@@ -157,30 +160,45 @@ def eval_rename_models():
 def evaluate(resume=False):
     if resume:
         trainer.resume_or_load(resume=True)
-    result = trainer.test(cfg, trainer.model, [COCOEvaluator("indoor_scene_val", ("bbox", "segm",),
-                                                             False, output_dir=cfg.OUTPUT_DIR + '/eval')])
+    if cfg.TEST.AUG.ENABLED:
+        trainer.model=GeneralizedRCNNWithTTA(cfg, trainer.model)
+    
+    result = trainer.test(cfg, trainer.model, 
+                [COCOEvaluator("indoor_scene_val", ("bbox", "segm",), distributed=False, output_dir=cfg.OUTPUT_DIR + '/eval')])
+    
     return result, result['segm']['AP']
 
 
-def get_model_cfg(model_name):
-    if model_name=='X152':
-        return  'Misc/cascade_mask_rcnn_X_152_32x8d_FPN_IN5k_gn_dconv.yaml'
+def update_model_cfg(cfg):
+    M = args.model_name
 
-    pre = 'COCO-InstanceSegmentation/mask_rcnn_'
-    post = '_1x.yaml' if model_name.endswith('_1x') else '_3x.yaml'
-    model_cfg_dict = {'R50': 'R_50_FPN', 'R50C4': 'R_50_C4', 'R50DC5': 'R_50_DC5', 'R50_1x': 'R_50_FPN',
-                      'R101': 'R_101_FPN', 'R101C4': 'R_101_C4', 'R101DC5': 'R_101_DC5',
-                      'X101': 'X_101_32x8d_FPN'}
-
-    return pre + model_cfg_dict[model_name] + post
+    if M[-1] in ('m', 'i'):
+        cfg.merge_from_file(model_zoo.get_config_file('Base-RCNN-FPN.yaml'))
+        # R50m: R50-MIT67.pkl, R50i: R50-Imagenet.pkl
+        cfg.MODEL.WEIGHTS = f'../models/{M}.pkl'
+        cfg.MODEL.MASK_ON = True
+        cfg.MODEL.RESNETS.DEPTH = int(M[1:-1])
+    else:
+        if M=='X152':
+            model_cfg_path =  'Misc/cascade_mask_rcnn_X_152_32x8d_FPN_IN5k_gn_dconv.yaml'
+        pre = 'COCO-InstanceSegmentation/mask_rcnn_'
+        post = '_1x.yaml' if M.endswith('_1x') else '_3x.yaml'
+        model_cfg_dict = {'R50': 'R_50_FPN', 'R50C4': 'R_50_C4', 'R50DC5': 'R_50_DC5', 'R50_1x': 'R_50_FPN',
+                        'R101': 'R_101_FPN', 'R101C4': 'R_101_C4', 'R101DC5': 'R_101_DC5',
+                        'X101': 'X_101_32x8d_FPN'}
+        model_cfg_path = pre + model_cfg_dict[M] + post
+        cfg.merge_from_file(model_zoo.get_config_file(model_cfg_path))
+        cfg.MODEL.WEIGHTS = model_zoo.get_checkpoint_url(model_cfg_path)
+    
+    return cfg
 
 
 def get_args():
     parser = argparse.ArgumentParser(description='Indoor Fire Load Detection')
 
-    parser.add_argument('-n', '--name', type=str, default='R50', help='model name')
+    parser.add_argument('-m', '--model_name', type=str, default='R50', help='model name')
     parser.add_argument('-i', '--iter', type=str, default='1k', help='num of training iterations, k=*1000')
-    parser.add_argument('-b', '--batch_size', type=int, default=4, help='batch size')
+    parser.add_argument('-b', '--batch_size', type=int, default=1, help='batch size')
     parser.add_argument('-l', '--lr', type=float, default=1e-3, help='learning rate')
     parser.add_argument('-c', '--cuda', type=str, default='', help='cuda visible device id')
     parser.add_argument('-r', '--resume', action='store_true', help='resume training')
@@ -189,31 +207,24 @@ def get_args():
     parser.add_argument('-s', '--step', type=str, default='100k', help='lr decrease step')
     parser.add_argument('--step2', type=str, default='200k', help='lr decrease step2')
     parser.add_argument('--step3', type=str, default='300k', help='lr decrease step3')
-    parser.add_argument('--save', type=int, default=1, help='save model file strategy, 1=best only, 2=all')
     parser.add_argument('--eval_only', action='store_true', help='eval model and exit')
+    parser.add_argument('--save_all', action='store_true', help='save all checkpoints in model training')
     parser.add_argument('--vis_all_preds', action='store_true', help='visualize all preds for val dataset')
+    parser.add_argument('--tta', action='store_true', help='test time augmentation')
     parser.add_argument('--fp16', type=int, default=1, help="FP16 acceleration, use 0/1 for false/true")
     # Requires pytorch>=1.6 to use native fp 16 acceleration (https://pytorch.org/docs/stable/notes/amp_examples.html)
 
     args_ = parser.parse_args()
 
     args_.fp16 = bool(args_.fp16)
-
     assert args_.iter[-1] == 'k' and args_.step[-1] == 'k' and args_.step2[-1] == 'k' and args_.step3[-1] == 'k'
     args_.iter = int(float(args_.iter[:-1]) * 1000)
     args_.step = int(float(args_.step[:-1]) * 1000)
     args_.step2 = int(float(args_.step2[:-1]) * 1000)
     args_.step3 = int(float(args_.step3[:-1]) * 1000)
-
     host_name = socket.gethostname().lower()
     if not args_.cuda:
         args_.cuda = '1' if host_name == 'dell-poweredge-t640' else '0'
-    # if args_.batch_size < 0:
-    #     bs_dict = {'R50': {'hsh406-zyc-ubuntu': 10, 'ms7c98-ubuntu': 40, 'dell-poweredge-t640': 12},
-    #                'R101': {'hsh406-zyc-ubuntu': 5, 'ms7c98-ubuntu': 30, 'dell-poweredge-t640': 10},
-    #                'X101': {'hsh406-zyc-ubuntu': 4, 'ms7c98-ubuntu': 20, 'dell-poweredge-t640': 6}}
-    #     name1 = args_.name[:3] if args_.name[:3]=='R50' else args_.name[:4]
-    #     args_.batch_size = bs_dict[name1][host_name]
 
     return args_
 
@@ -222,11 +233,9 @@ if __name__ == "__main__":
     args = get_args()
     os.environ["CUDA_VISIBLE_DEVICES"] = args.cuda
     metadata_train, metadata_val = register_dataset(fold=args.fold)
-    model_cfg = get_model_cfg(args.name)
-
+    
     cfg = get_cfg()
-    cfg.merge_from_file(model_zoo.get_config_file(model_cfg))
-    cfg.MODEL.WEIGHTS = model_zoo.get_checkpoint_url(model_cfg)
+    cfg = update_model_cfg(cfg)
     cfg.DATASETS.TRAIN = ('indoor_scene_train',)
     cfg.DATASETS.TEST = ('indoor_scene_val',)
     cfg.OUTPUT_DIR = './output' if args.cuda=='0' else './output'+args.cuda
@@ -242,18 +251,20 @@ if __name__ == "__main__":
     cfg.SOLVER.WARMUP_ITERS = 100
     cfg.SOLVER.CHECKPOINT_PERIOD = 500
     cfg.MODEL.ANCHOR_GENERATOR.ASPECT_RATIOS = [[0.33, 1.0, 3.0]] # slightly better than default
+    cfg.INPUT.CROP.ENABLED = True
+    cfg.TEST.AUG.ENABLED = args.tta
 
     os.makedirs(cfg.OUTPUT_DIR, exist_ok=True)
     shutil.rmtree(cfg.OUTPUT_DIR+'/eval', ignore_errors=True) # remove cache
     _lr = f'{args.lr * 1000}x'  # lr 1x = 1/1000
     _r = '-r' if args.resume else ''
     _s = 's' if args.step < args.iter else ''
-    model_fullname = f"{args.name}-f{args.fold}-bs{args.batch_size:02d}-lr{_s}{_lr}{_r}".replace('e-0', 'e-')
+    model_fullname = f"{args.model_name}-f{args.fold}-bs{args.batch_size:02d}-lr{_s}{_lr}{_r}".replace('e-0', 'e-')
     logger = setup_logger(cfg.OUTPUT_DIR + '/log.log')
     logger.info('#' * 100 + '\n')
     logger.info('Args: ' + str(args))
+    logger.info('Model weights: ' + cfg.MODEL.WEIGHTS)
     logger.info('Model full name: ' + model_fullname)
-    logger.info('Model cfg: ' + model_cfg)
 
     trainer = Trainer(cfg)
     if args.eval_only:
