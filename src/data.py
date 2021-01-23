@@ -3,7 +3,9 @@
 import os, sys, json, cv2, random
 import glob
 import json
+import xml.etree.ElementTree as ET
 from pprint import pprint
+from PIL import Image
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -12,14 +14,14 @@ from detectron2.utils.visualizer import Visualizer
 from detectron2.data import MetadataCatalog, DatasetCatalog
 
 
-# Categories = ['fabric', 'wood', 'plastic', 'metal', 'glass']
-Categories = ['fabric', 'wood', 'plastic', 'glass']
-Category_Ids = {c: i for i, c in enumerate(Categories)}
-Id_Categories = {i: c for i, c in enumerate(Categories)}
+# init by register_dataset()
+Categories = None # list
+Category_Ids = None # dict
+Id_Categories = None # dict
 
 
-def get_indoor_scene_dicts(data_dir='../data/indoor-scene/trainval1k/', trainval='train', fold=2):
-    """ fold: 0-4 (fold=2 is better)
+def get_indoor_scene_dicts(data_dir='../data/indoor-scene/trainval1k', trainval='train', fold=2):
+    """ fold: 0-4
         return: list[dict]
         ref: https://detectron2.readthedocs.io/tutorials/datasets.html
     """
@@ -30,6 +32,7 @@ def get_indoor_scene_dicts(data_dir='../data/indoor-scene/trainval1k/', trainval
     # np.random.seed(0)
     # np.random.shuffle(json_paths)
     # json_paths=list(json_paths)
+    assert Categories and Category_Ids
     
     k_fold = 5
     n = len(json_paths)
@@ -72,21 +75,112 @@ def get_indoor_scene_dicts(data_dir='../data/indoor-scene/trainval1k/', trainval
     return data_dicts
 
 
-def register_dataset(fold=2):
-    DatasetCatalog.register('indoor_scene_train', lambda: get_indoor_scene_dicts(trainval='train', fold=fold))
-    MetadataCatalog.get('indoor_scene_train').thing_classes = Categories
+def get_mit67_dicts(data_dir='../data/MIT67', trainval='train', fold=0):
+    """ fold: 0-4
+        return: list[dict]
+        ref: https://detectron2.readthedocs.io/tutorials/datasets.html
+    """
+    xml_paths = glob.glob(f'{data_dir}/Annotations/*/*.xml')
+    xml_paths = np.array(xml_paths)
+    np.random.seed(0)
+    np.random.shuffle(xml_paths)
+    xml_paths = list(xml_paths)
+    assert Categories and Category_Ids
+    
+    k_fold = 5
+    n = len(xml_paths)
+    n1 = int(n/k_fold)
+    i1 = n1 * fold
+    i2 = i1 + n1 if fold < (k_fold-1) else n
+    if trainval=='val':
+        xml_paths=xml_paths[i1:i2]
+    elif trainval=='train':
+        del xml_paths[i1:i2]
+    else:
+        raise AssertionError("trainval should be 'train' or 'val'")
 
-    DatasetCatalog.register('indoor_scene_val', lambda: get_indoor_scene_dicts(trainval='val', fold=fold))
-    MetadataCatalog.get('indoor_scene_val').thing_classes = Categories
-    # MetadataCatalog.get('indoor_scene_val').evaluator_type = 'coco'
+    data_dicts = []
+    for idx, xml_path in enumerate(xml_paths):
+        root = ET.parse(xml_path).getroot()
+        record = {}
 
-    metadata_train = MetadataCatalog.get("indoor_scene_train")
-    metadata_val = MetadataCatalog.get("indoor_scene_val")
+        folder = root.find('folder').text.strip()
+        filename = root.find('filename').text.strip()
+        record['file_name'] = f'{data_dir}/Images/{folder}/{filename}'
+        record["image_id"] = idx
+
+        try:
+            img = Image.open(record['file_name'])
+            record['width'], record['height'] = img.size
+        except FileNotFoundError as e:
+            # print('FileNotFound:', xml_path) # count=4
+            continue
+
+        annotations = []
+        for object_ in root.findall('object'):
+            deleted = object_.find('deleted').text
+            name = object_.find('name').text
+            if deleted=='1' or name not in Categories:
+                continue
+            category_id = Category_Ids[name]
+
+            seg1 = []
+            xs, ys=[], []
+            for pt in object_.find('polygon').findall('pt'):
+                x = int(pt.find('x').text.strip())
+                y = int(pt.find('y').text.strip())
+                seg1.append(x)
+                seg1.append(y)
+                xs.append(x)
+                ys.append(y)
+            
+            bbox = [min(xs), min(ys), max(xs), max(ys)]
+            annotations.append({'bbox': bbox, 'bbox_mode': BoxMode.XYXY_ABS, 'category_id': category_id, 'segmentation': [seg1]})
+
+        record['annotations'] = annotations
+        data_dicts.append(record)
+
+    return data_dicts
+
+
+def get_dataset_dicts(dataset_name, trainval, fold):
+    """use default data_dir"""
+    
+    if dataset_name == 'indoor_scene':
+        return get_indoor_scene_dicts(trainval=trainval, fold=fold)
+    elif dataset_name == 'mit67':
+        return get_mit67_dicts(trainval=trainval, fold=fold)
+    else:
+        raise AssertionError('Invalid dataset name:', dataset_name)
+
+
+def register_dataset(dataset_name, fold=0):
+    assert dataset_name in ('indoor_scene', 'mit67')
+    
+    global Categories, Category_Ids, Id_Categories
+    if dataset_name=='indoor_scene':
+        Categories = ['fabric', 'wood', 'plastic', 'glass']
+    else:    
+        with open('../data/MIT67/name80.txt','r') as fp:
+            Categories = fp.readlines()
+            Categories = [c.strip() for c in Categories if c]
+    Category_Ids = {c: i for i, c in enumerate(Categories)}
+    Id_Categories = {i: c for i, c in enumerate(Categories)}
+
+    DatasetCatalog.register(f'{dataset_name}_train', lambda: get_dataset_dicts(dataset_name, 'train', fold=fold))
+    MetadataCatalog.get(f'{dataset_name}_train').thing_classes = Categories
+
+    DatasetCatalog.register(f'{dataset_name}_val', lambda: get_dataset_dicts(dataset_name, 'val', fold=fold))
+    MetadataCatalog.get(f'{dataset_name}_val').thing_classes = Categories
+    
+    metadata_train = MetadataCatalog.get(f'{dataset_name}_train')
+    metadata_val = MetadataCatalog.get(f'{dataset_name}_val')
     return metadata_train, metadata_val
 
 
-def visualize_all_label(data_dir='../data/indoor-scene/trainval1k/'):
-    metadata_train, metadata_val = register_dataset()
+def visualize_all_label():
+    data_dir='../data/indoor-scene/trainval1k'
+    metadata_train, metadata_val = register_dataset('indoor_scene')
     for trainval in ('val', 'train'):
         dataset_dicts=get_indoor_scene_dicts(data_dir, trainval)
         for d in dataset_dicts:
@@ -100,15 +194,15 @@ def visualize_all_label(data_dir='../data/indoor-scene/trainval1k/'):
             print('visualize saved:', vispath)
 
 
-def fold_stat():
+def fold_stat(dataset_name='mit67'):
+    metadata_train, metadata_val = register_dataset(dataset_name)
     print(Categories)
-    metadata_train, metadata_val = register_dataset()
     for fold in range(5):
-        train_dataset_dicts=get_indoor_scene_dicts(trainval='train',fold=fold)
-        val_dataset_dicts=get_indoor_scene_dicts(trainval='val',fold=fold)
+        train_dataset_dicts=get_dataset_dicts(dataset_name, trainval='train',fold=fold)
+        val_dataset_dicts=get_dataset_dicts(dataset_name, trainval='val',fold=fold)
         print(f'fold={fold}, n_train={len(train_dataset_dicts)}, n_val={len(val_dataset_dicts)}')
 
-        N=[[0,0,0,0], [0,0,0,0]]
+        N=np.zeros((2, len(Categories)))
         for i, dataset_dicts in enumerate((train_dataset_dicts, val_dataset_dicts)):
             for record in dataset_dicts:
                 for ann in record['annotations']:
@@ -148,7 +242,6 @@ def fold_stat():
 
 def fold_stat_bbox_area():
     print('large, medium, small')
-    metadata_train, metadata_val = register_dataset()
     for fold in range(5):
         train_dataset_dicts=get_indoor_scene_dicts(trainval='train',fold=fold)
         val_dataset_dicts=get_indoor_scene_dicts(trainval='val',fold=fold)
@@ -208,7 +301,6 @@ def fold_stat_img_class():
         with open(f'../data/indoor-scene/trainval1k-class/{c}.txt','r',encoding='utf-8-sig') as fp:
             names.append(fp.readlines())
     
-    metadata_train, metadata_val = register_dataset()
     for fold in range(5):
         train_dataset_dicts=get_indoor_scene_dicts(trainval='train',fold=fold)
         val_dataset_dicts=get_indoor_scene_dicts(trainval='val',fold=fold)
@@ -260,7 +352,6 @@ def fold_stat_img_class():
 
 
 def _test():
-    metadata_train, metadata_val = register_dataset()
     train_dataset_dicts=get_indoor_scene_dicts(trainval='train')
     val_dataset_dicts=get_indoor_scene_dicts(trainval='val')
     ns=[]
@@ -275,7 +366,7 @@ def _test():
 
 
 if __name__ == '__main__':
-    # fold_stat()
+    fold_stat()
     # fold_stat_bbox_area()
     # fold_stat_img_class()
-    visualize_all_label()
+    # visualize_all_label()

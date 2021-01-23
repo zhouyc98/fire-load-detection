@@ -12,8 +12,7 @@ models/
 output*/
 output
 
-run.sh
-run*.sh
+run*.*
 *.xlsx
 *.pt
 *.pth
