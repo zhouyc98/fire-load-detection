@@ -131,13 +131,20 @@ def rename_models():
         ap_i_fns.append((ap, i, fn_new))
         os.rename(fn, fn_new)
         logger.info(f'rename: {fn} -> {fn_new}')
-    
-    ap_i_fns.sort(key=lambda x: x[1])
+
     # save best, for resume
     ap_i_fns.sort()
     ap_max, i_max, fn_max=ap_i_fns[-1]
+    logger.info(f'save as model_final: {fn_max}')
     shutil.copy(fn_max, model_final_path)
-    logger.info(f'model {fn_max} is copied as model_final.pth')
+    del ap_i_fns[-1]
+    
+    for idx in range(len(ap_i_fns)-1,-1,-1):
+        ap, i, fn = ap_i_fns[idx]
+        if i+1 == cfg.SOLVER.STEPS[0]:
+            logger.info(f"save step model: {fn} (lrs -> lr)")
+            os.rename(fn, fn.replace('-lrs','-lr'))
+            del ap_i_fns[idx]
     
     if args.tta:
         # tta for model_final
@@ -148,8 +155,8 @@ def rename_models():
 
     # clear models
     if not args.save_all:
-        logger.info('clear models...')
-        for _, i, fn in ap_i_fns[:-1]:
+        logger.info('clear models ...')
+        for _, i, fn in ap_i_fns:
             os.remove(fn)
     
     return ap_max, fn_max
@@ -184,7 +191,7 @@ def get_model_cfg(cfg, model_name):
     else:
         # pretrained in MIT67 dataset
         cfg = get_model_cfg(cfg, model_name[:-1])
-        cfg.MODEL.WEIGHTS = f'../models/{model_name}.pkl'
+        cfg.MODEL.WEIGHTS = sorted(glob(f'../models/{model_name[:-1]}-m*.pkl'))[-1]
     
     return cfg
 
@@ -242,17 +249,17 @@ if __name__ == "__main__":
     cfg.SOLVER.AMP.ENABLED = args.fp16
     cfg.SOLVER.MAX_ITER = args.iter  # epochs = batch_size * iter / n_images
     cfg.SOLVER.IMS_PER_BATCH = args.batch_size  # global batch_size
-    cfg.TEST.EVAL_PERIOD = 250
     cfg.SOLVER.BASE_LR = args.lr
     cfg.SOLVER.GAMMA = args.gamma
     cfg.SOLVER.STEPS = (args.step, args.step2, args.step3)
     cfg.SOLVER.WARMUP_ITERS = 100
-    cfg.SOLVER.CHECKPOINT_PERIOD = 500
+    cfg.TEST.EVAL_PERIOD = 200
+    cfg.SOLVER.CHECKPOINT_PERIOD = 200
     cfg.MODEL.ANCHOR_GENERATOR.ASPECT_RATIOS = [[0.33, 1.0, 3.0]] # slightly better than default
     cfg.INPUT.CROP.ENABLED = True
     if args.dataset != 'indoor_scene':
-        cfg.TEST.EVAL_PERIOD *= 2
-        cfg.SOLVER.CHECKPOINT_PERIOD *= 2
+        cfg.TEST.EVAL_PERIOD = 500
+        cfg.SOLVER.CHECKPOINT_PERIOD = 500
 
     os.makedirs(cfg.OUTPUT_DIR, exist_ok=True)
     shutil.rmtree(cfg.OUTPUT_DIR+'/eval', ignore_errors=True) # remove cache
