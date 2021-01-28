@@ -84,9 +84,18 @@ class Trainer(DefaultTrainer):
         # logger.info("Model:\n{}".format(model)) # suppress this too long message
         return model
 
+    def resume_or_load(self, resume):
+        if resume:
+            with open(f'{cfg.OUTPUT_DIR}/last_checkpoint', 'r') as fp:
+                path = f'{cfg.OUTPUT_DIR}/{fp.read().strip()}'
+            logger.info('resume from last_checkpoint: '+path)
+        return super().resume_or_load(resume=resume)
 
-def visualize_preds(model_path='model_final.pth', output_dir='./output/preds'):
-    cfg.MODEL.WEIGHTS = os.path.join(cfg.OUTPUT_DIR, model_path)  # path to the model we just trained
+def visualize_preds(output_dir='./output/preds'):
+    with open(f'{cfg.OUTPUT_DIR}/last_checkpoint', 'r') as fp:
+        path = f'{cfg.OUTPUT_DIR}/{fp.read().strip()}'
+    logger.info('visualize preds based on last_checkpoint: '+path)
+    cfg.MODEL.WEIGHTS = path  # path to the model we just trained
     cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = args.thr_test  # set a custom testing threshold
     predictor = DefaultPredictor(cfg)
     
@@ -292,7 +301,6 @@ if __name__ == "__main__":
     trainer.resume_or_load(resume=args.resume)
     if args.resume:
         # lr and optimizer will also be resumed, change lr by using steps
-        logger.info('Resume training')
         trainer.max_iter = args.iter # + trainer.start_iter
         trainer.scheduler.milestones = cfg.SOLVER.STEPS
     
