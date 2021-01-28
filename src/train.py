@@ -87,14 +87,14 @@ class Trainer(DefaultTrainer):
 
 def visualize_preds(model_path='model_final.pth', output_dir='./output/preds'):
     cfg.MODEL.WEIGHTS = os.path.join(cfg.OUTPUT_DIR, model_path)  # path to the model we just trained
-    cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = 0.3  # set a custom testing threshold
+    cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = args.thr_test  # set a custom testing threshold
     predictor = DefaultPredictor(cfg)
     
     val_dataset_dicts = get_dataset_dicts(args.dataset, trainval='val', fold=args.fold)
     n_sample=4
     if args.vis_all_preds:
         n_sample = len(val_dataset_dicts)
-        output_dir += f'/{model_fullname}-ap{ap:.1f}'
+        output_dir += f'/{model_fullname}-ap{ap:.1f}-thr{args.thr_test}'
     else:
         val_dataset_dicts=random.sample(val_dataset_dicts, n_sample)
     os.makedirs(output_dir, exist_ok=True)
@@ -216,11 +216,14 @@ def get_args():
     parser.add_argument('--to_pkl', action='store_true', help='convert model to pkl format and exit')
     parser.add_argument('--vis_all_preds', action='store_true', help='visualize all preds for val dataset')
     parser.add_argument('--tta', action='store_true', help='test time augmentation')
-    parser.add_argument('--fp16', type=int, default=1, help="FP16 acceleration, use 0/1 for false/true")
+    parser.add_argument('--thr_test', type=float, default=0.3, help='ROI thr test')
+    parser.add_argument('--fp16', type=int, default=2, help="FP16 acceleration, use 0/1/2 for false/true/auto")
     # Requires pytorch>=1.6 to use native fp 16 acceleration (https://pytorch.org/docs/stable/notes/amp_examples.html)
 
     args_ = parser.parse_args()
-
+    
+    if args_.fp16==2:
+        args_.fp16 = 0 if args_.model_name=='X152' else 1
     args_.fp16 = bool(args_.fp16)
     assert args_.iter[-1] == 'k' and args_.step[-1] == 'k' and args_.step2[-1] == 'k' and args_.step3[-1] == 'k'
     args_.iter = int(float(args_.iter[:-1]) * 1000)
@@ -290,7 +293,6 @@ if __name__ == "__main__":
     if args.resume:
         # lr and optimizer will also be resumed, change lr by using steps
         logger.info('Resume training')
-        trainer.start_iter += 1
         trainer.max_iter = args.iter # + trainer.start_iter
         trainer.scheduler.milestones = cfg.SOLVER.STEPS
     
@@ -300,5 +302,5 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         logger.info('==================== KeyboardInterrupt, early stop ====================')
         pass
-    rename_models()
+    ap, fn = rename_models() # ap will be used in visualize_preds
     visualize_preds()
