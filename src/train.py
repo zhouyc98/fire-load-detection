@@ -61,6 +61,7 @@ class Trainer(DefaultTrainer):
         # n1 = {'ms7c98-ubuntu': 'S', 'hsh406-zyc-ubuntu': 'Z', 'dell-poweredge-t640': 'D', 'quincy-ubuntu': 'Y'}[
         #     socket.gethostname().lower()]
         dt_now = datetime.now().strftime('%m%d-%H%M')
+        assert not os.path.exists(f"./output/runs/{dt_now} {model_fullname}"), 'runs dir exits!'
         with open(f'{cfg.OUTPUT_DIR}/metrics.json', 'a') as fp:
             fp.write(f'\n# [{dt_now}] {model_fullname} ==========\n')
         return [
@@ -122,6 +123,8 @@ def visualize_preds(output_dir='./output/preds'):
 
 def rename_models():
     model_final_path = cfg.OUTPUT_DIR + '/model_final.pth'
+    with open(f'{cfg.OUTPUT_DIR}/last_checkpoint', 'w') as fp:
+        fp.write('model_final.pth')
     with open(cfg.OUTPUT_DIR+'/metrics.json','r') as fp:
         metrics = fp.readlines()
     ind = [i for i,m in enumerate(metrics) if m[0]=='#'][-1]
@@ -141,32 +144,35 @@ def rename_models():
         os.rename(fn, fn_new)
         logger.info(f'rename: {fn} -> {fn_new}')
 
-    # save best, for resume
+    # save best model
     ap_i_fns.sort()
     ap_max, i_max, fn_max=ap_i_fns[-1]
     logger.info(f'save as model_final: {fn_max}')
     shutil.copy(fn_max, model_final_path)
     del ap_i_fns[-1]
     
+    # save step model
     for idx in range(len(ap_i_fns)-1,-1,-1):
         ap, i, fn = ap_i_fns[idx]
         if i+1 == cfg.SOLVER.STEPS[0]:
-            logger.info(f"save step model: {fn} (lrs -> lr)")
-            os.rename(fn, fn.replace('-lrs','-lr'))
+            fn_new = fn.replace('-lrs','-lr')
+            logger.info(f"save step model: {fn_new} (lrs -> lr)")
+            os.rename(fn, fn_new)
             del ap_i_fns[idx]
     
-    if args.tta:
-        # tta for model_final
-        logger.info(f'===== Eval with TTA: {fn_max}')
-        _, ap = evaluate(resume=True, tta=True)
-        logger.info('Eval AP (TTA): ' + str(ap))
-        os.rename(fn_max, f'{fn_max[:-4]}-aap{ap:.2f}.pth')
-
     # clear models
     if not args.save_all:
         logger.info('clear models ...')
         for _, i, fn in ap_i_fns:
             os.remove(fn)
+    
+    # eval with tta for model_final
+    if args.tta:
+        logger.info(f'===== Eval with TTA: {fn_max}')
+        _, ap = evaluate(resume=True, tta=True)
+        logger.info('Eval AP (TTA): ' + str(ap))
+        os.rename(fn_max, f'{fn_max[:-4]}-aap{ap:.2f}.pth')
+
     
     return ap_max, fn_max
 
@@ -225,7 +231,7 @@ def get_args():
     parser.add_argument('--to_pkl', action='store_true', help='convert model to pkl format and exit')
     parser.add_argument('--vis_all_preds', action='store_true', help='visualize all preds for val dataset')
     parser.add_argument('--tta', action='store_true', help='test time augmentation')
-    parser.add_argument('--thr_test', type=float, default=0.3, help='ROI thr test')
+    parser.add_argument('--thr_test', type=float, default=0.5, help='ROI thr test')
     parser.add_argument('--fp16', type=int, default=2, help="FP16 acceleration, use 0/1/2 for false/true/auto")
     # Requires pytorch>=1.6 to use native fp 16 acceleration (https://pytorch.org/docs/stable/notes/amp_examples.html)
 
@@ -265,13 +271,10 @@ if __name__ == "__main__":
     cfg.SOLVER.GAMMA = args.gamma
     cfg.SOLVER.STEPS = (args.step, args.step2, args.step3)
     cfg.SOLVER.WARMUP_ITERS = 100
-    cfg.TEST.EVAL_PERIOD = 200
-    cfg.SOLVER.CHECKPOINT_PERIOD = 200
+    cfg.TEST.EVAL_PERIOD = 200 if args.batch_size < 4 else 100
+    cfg.SOLVER.CHECKPOINT_PERIOD = cfg.TEST.EVAL_PERIOD
     cfg.MODEL.ANCHOR_GENERATOR.ASPECT_RATIOS = [[0.33, 1.0, 3.0]] # slightly better than default
     cfg.INPUT.CROP.ENABLED = True
-    if args.dataset != 'indoor_scene':
-        cfg.TEST.EVAL_PERIOD = 500
-        cfg.SOLVER.CHECKPOINT_PERIOD = 500
 
     os.makedirs(cfg.OUTPUT_DIR, exist_ok=True)
     shutil.rmtree(cfg.OUTPUT_DIR+'/eval', ignore_errors=True) # remove cache
@@ -309,6 +312,7 @@ if __name__ == "__main__":
         trainer.train()
     except KeyboardInterrupt:
         logger.info('==================== KeyboardInterrupt, early stop ====================')
+        args.tta = False
         pass
     ap, fn = rename_models() # ap will be used in visualize_preds
     visualize_preds()
