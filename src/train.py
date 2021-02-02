@@ -137,6 +137,8 @@ def rename_models():
     ap_i_fns = []
     for fn in sorted(glob(cfg.OUTPUT_DIR + '/model_0*.pth')):
         i = int(fn.split('model_0')[1][:-4])
+        if i not in d:
+            continue
         ap = d[i]
         ik = f'{round(i / 1000, 1)}k'
         fn_new = f'{cfg.OUTPUT_DIR}/{model_fullname}-it{ik}-ap{ap:.1f}.pth'
