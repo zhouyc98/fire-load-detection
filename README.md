@@ -1,7 +1,10 @@
 # Fire Load Detection
 Indoor fire load detection using deep learning-based instance segmentation.
 
-![example-predictions](data/indoor-scene/example-predictions.png)
+This repo contains the dataset, codes, and documents for the following paper:  
+Y. -C. Zhou, Z. -Z. Hu, K. -X. Yan and J. -R. Lin, "Deep Learning-Based Instance Segmentation for Indoor Fire Load Recognition," in IEEE Access, vol. 9, pp. 148771-148782, 2021, doi: [10.1109/ACCESS.2021.3124831](https://doi.org/10.1109/ACCESS.2021.3124831).
+
+![example-predictions](data/indoor-scene/example-predictions.jpg)
 
 
 
@@ -30,3 +33,4 @@ cd fire-load-detection/src
 ```
 python3 train.py -m R50 -b 4 -l 2e-3 -i 6k --step 4k
 ```
+

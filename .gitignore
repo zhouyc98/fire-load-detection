@@ -5,7 +5,7 @@ data/*
 !data/indoor-scene
 data/indoor-scene/*
 !data/indoor-scene/trainval1k.zip
-!data/indoor-scene/example-predictions.png
+!data/indoor-scene/example-predictions.jpg
 
 bak*/
 csv/
